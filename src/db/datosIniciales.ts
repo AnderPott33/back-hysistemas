@@ -443,6 +443,26 @@ const INDICES: { nombre: string; sql: string }[] = [
 const GRUPO_ADMINISTRADOR_NOMBRE = 'Administrador';
 
 /**
+ * Inserta las monedas iniciales (PYG, USD, BRL) en ese orden exacto,
+ * solo si la tabla moneda está vacía. Así los IDs quedan 1, 2 y 3.
+ */
+export const crearMonedasIniciales = async () => {
+  const existentes = await query('SELECT COUNT(*)::int AS count FROM moneda');
+  if (existentes.rows[0].count > 0) {
+    console.log('   ℹ️  Monedas ya existen');
+    return;
+  }
+
+  await query(`
+    INSERT INTO moneda (codigo, nombre, simbolo, decimales, activo) VALUES
+      ('PYG', 'Guaraní Paraguayo', '₲', 0, TRUE),
+      ('USD', 'Dólar Estadounidense', '$', 2, TRUE),
+      ('BRL', 'Real Brasileño', 'R$', 2, TRUE)
+  `);
+  console.log('   ✓ Monedas creadas (PYG, USD, BRL)');
+};
+
+/**
  * Crea el grupo "Administrador" con todos los permisos, si no existe.
  * No modifica el grupo si ya existe, para respetar cambios hechos en la app.
  */
@@ -521,6 +541,7 @@ export const initializeDatabase = async () => {
   console.log('   ✓ Índices creados');
 
   console.log('\n📌 Datos iniciales...');
+  await crearMonedasIniciales();
   await crearGrupoAdministrador();
   await crearUsuarioMaster();
 
