@@ -4,13 +4,13 @@ import { pool } from '../db/db.js';
 
 export type TipoAsiento = 'PAGO' | 'RECIBIMIENTO' | 'SAQUE' | 'DEPOSITO' | 'TRANSFERENCIA' | 'AJUSTE';
 export type Naturaleza = 'Débito' | 'Crédito';
-export type FormaPago = 'Efectivo' | 'Lanzamiento Bancario' | 'Cheque' | 'Tarjeta';
+export type FormaPago = 'Efectivo' | 'Lanzamiento Bancario' | 'Depósito Bancario' | 'Saque Bancario' | 'Cheque' | 'Tarjeta';
 
 // Los asientos de caja siempre son Efectivo.
 const FORMA_PAGO_CAJA: FormaPago = 'Efectivo';
 
 // Los asientos de cuenta deben llegar con una de estas formas de pago desde el front.
-const FORMAS_PAGO_CUENTA: readonly FormaPago[] = ['Lanzamiento Bancario', 'Cheque', 'Tarjeta'];
+const FORMAS_PAGO_CUENTA: readonly FormaPago[] = ['Lanzamiento Bancario', 'Cheque', 'Tarjeta',  'Depósito Bancario', 'Saque Bancario'];
 
 export type DatosAsiento = {
     movimientoId?: number | null;
