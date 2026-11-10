@@ -1,0 +1,60 @@
+# ============================================================
+# .gitignore - backend Owl-Soft ERP (Node + TypeScript + Express + PostgreSQL)
+# ============================================================
+
+# --- Dependencias (package-lock.json SÍ se versiona) ---
+node_modules/
+
+# --- Variables de entorno y secretos (NUNCA subir) ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# --- Build / compilación TypeScript ---
+dist/
+build/
+out/
+*.tsbuildinfo
+# Por si tsc emite .js junto a los .ts (tsconfig.json actual no define outDir)
+src/**/*.js
+src/**/*.js.map
+
+# --- Logs ---
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# --- Caché de herramientas ---
+.cache/
+.parcel-cache/
+.eslintcache
+.tsx-cache/
+
+# --- Puppeteer (Chromium descargado localmente) ---
+.local-chromium/
+
+# --- Cobertura de tests ---
+coverage/
+.nyc_output/
+
+# --- Archivos generados en runtime ---
+uploads/
+tmp/
+temp/
+
+# --- Sistema operativo ---
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Editores / IDEs ---
+.vscode/
+.idea/
+*.swp
+*.swo
+*.sublime-workspace

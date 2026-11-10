@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Recibo Legal — {{numero_recibo_legal}}</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
+
+    :root {
+      --primary-dark: {{#if color_principal}}{{color_principal}}{{else}}#0f172a{{/if}};
+      --accent:       #3b82f6;
+      --success-bg:   #166534;
+      --success-text: #bbf7d0;
+      --text-main:    #0f172a;
+      --text-muted:   #64748b;
+      --text-light:   #94a3b8;
+      --text-slate:   #e2e8f0;
+      --bg-soft:      #f8fafc;
+      --bg-mid:       #f1f5f9;
+      --border:       rgba(15, 23, 42, 0.1);
+      --red:          #dc2626;
+      --green:        #16a34a;
+    }
+
+    @page { size: A4; margin: 0; }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      width: 210mm;
+      min-height: 297mm;
+      font-family: 'DM Sans', 'Segoe UI', Helvetica, Arial, sans-serif;
+      font-size: 10pt;
+      color: var(--text-main);
+      background: #fff;
+    }
+
+    /* ─── WRAPPER ─── */
+    .receipt {
+      width: 100%;
+      min-height: 297mm;
+      display: flex;
+      flex-direction: column;
+      border: 0.5px solid var(--border);
+    }
+
+    /* ─── HEADER ─── */
+    .r-header {
+      background: var(--primary-dark);
+      padding: 20px 28px 18px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      flex-shrink: 0;
+    }
+
+    .r-logo-title {
+      font-family: 'DM Serif Display', Georgia, serif;
+      font-size: 20pt;
+      color: #f8fafc;
+      letter-spacing: -0.3px;
+      margin-bottom: 4px;
+    }
+
+    .r-logo-sub {
+      font-size: 7.5pt;
+      color: var(--text-light);
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+    }
+
+    .r-badge { text-align: right; }
+
+    .r-badge-label {
+      font-size: 7pt;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+
+    .r-badge-num {
+      font-family: 'DM Mono', 'Courier New', monospace;
+      font-size: 15pt;
+      font-weight: 500;
+      color: var(--text-slate);
+      letter-spacing: 2px;
+    }
+
+    .r-badge-status {
+      display: inline-block;
+      margin-top: 6px;
+      padding: 3px 10px;
+      background: var(--success-bg);
+      color: var(--success-text);
+      font-size: 7pt;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      border-radius: 999px;
+    }
+
+    /* ─── META GRID ─── */
+    .r-meta {
+      padding: 16px 28px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      border-bottom: 0.5px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .r-meta-left { border-right: 0.5px solid var(--border); padding-right: 20px; }
+    .r-meta-right { padding-left: 20px; }
+
+    .r-field { margin-bottom: 12px; }
+    .r-field:last-child { margin-bottom: 0; }
+
+    .r-field-label {
+      font-size: 7pt;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--text-muted);
+      margin-bottom: 2px;
+    }
+
+    .r-field-value {
+      font-size: 9.5pt;
+      font-weight: 500;
+      color: var(--text-main);
+    }
+
+    .r-field-value.big {
+      font-size: 11pt;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    /* ─── SECTION TITLE ─── */
+    .r-section-title {
+      padding: 8px 28px;
+      font-size: 7pt;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      border-bottom: 0.5px solid var(--border);
+      background: var(--bg-soft);
+      flex-shrink: 0;
+    }
+
+    /* ─── TABLES ─── */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 8.5pt;
+    }
+
+    table thead tr { background: var(--bg-mid); }
+
+    table th {
+      font-size: 7pt;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      font-weight: 500;
+      padding: 7px 28px;
+      text-align: left;
+      border-bottom: 0.5px solid var(--border);
+    }
+
+    table th:last-child { text-align: right; }
+
+    table td {
+      padding: 9px 28px;
+      border-bottom: 0.5px solid var(--border);
+      color: var(--text-main);
+      vertical-align: middle;
+    }
+
+    table td:last-child {
+      text-align: right;
+      font-family: 'DM Mono', 'Courier New', monospace;
+      font-size: 8pt;
+    }
+
+    table tbody tr:last-child td { border-bottom: none; }
+
+    .desc-main { font-weight: 500; }
+    .desc-sub  { font-size: 7.5pt; color: var(--text-muted); margin-top: 2px; }
+
+    .col-mono {
+      font-family: 'DM Mono', 'Courier New', monospace;
+      font-size: 8pt;
+    }
+
+    .col-center { text-align: center !important; }
+    .col-right  { text-align: right !important; }
+
+    .val-interest { color: var(--red); }
+    .val-discount { color: var(--green); }
+    .val-bold     { font-weight: 600; }
+
+    /* ─── LETRAS ─── */
+    .r-letras {
+      padding: 12px 28px;
+      border-top: 0.5px solid var(--border);
+      display: flex;
+      gap: 10px;
+      align-items: stretch;
+      flex-shrink: 0;
+    }
+
+    .r-letras-bar {
+      width: 3px;
+      background: var(--accent);
+      border-radius: 2px;
+      flex-shrink: 0;
+    }
+
+    .r-letras-label {
+      font-size: 7pt;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 3px;
+    }
+
+    .r-letras-text {
+      font-size: 9.5pt;
+      font-style: italic;
+      color: var(--text-main);
+    }
+
+    /* ─── SUBTOTALS ─── */
+    .r-totals {
+      padding: 12px 28px;
+      background: var(--bg-soft);
+      border-top: 0.5px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .r-totals-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+      font-size: 8.5pt;
+    }
+
+    .r-totals-row:last-child { margin-bottom: 0; }
+    .r-totals-row .lbl { color: var(--text-muted); }
+
+    .r-totals-row .val {
+      font-family: 'DM Mono', 'Courier New', monospace;
+      font-size: 8pt;
+      color: var(--text-main);
+    }
+
+    /* ─── TOTAL FINAL ─── */
+    .r-total-final {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 14px 28px;
+      background: var(--primary-dark);
+      flex-shrink: 0;
+    }
+
+    .r-total-final .lbl {
+      font-size: 8pt;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+
+    .r-total-final .val {
+      font-family: 'DM Mono', 'Courier New', monospace;
+      font-size: 16pt;
+      font-weight: 500;
+      color: #f8fafc;
+      letter-spacing: 1px;
+    }
+
+    /* ─── FIRMAS ─── */
+    .r-sigs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      padding: 20px 28px 16px;
+      gap: 28px;
+      border-top: 0.5px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .r-sig-box { text-align: center; }
+
+    .r-sig-spacer { height: 32px; }
+
+    .r-sig-line {
+      border-top: 1px solid var(--border);
+      padding-top: 7px;
+      font-size: 7.5pt;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--text-muted);
+    }
+
+    .r-sig-name {
+      font-size: 9pt;
+      font-weight: 500;
+      color: var(--text-main);
+      margin-top: 3px;
+    }
+
+    /* ─── FOOTER ─── */
+    .r-footer {
+      margin-top: auto;
+      padding: 10px 28px;
+      background: var(--bg-mid);
+      border-top: 0.5px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+    }
+
+    .r-footer p {
+      font-size: 7pt;
+      color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+
+<div class="receipt">
+
+  <!-- ═══ HEADER ═══ -->
+  <div class="r-header">
+    <div class="r-logo-area">
+      {{#if logo_empresa}}
+        <img src="{{logo_empresa}}" style="height: 9mm; margin-bottom: 6px; display: block;">
+      {{/if}}
+      <div class="r-logo-title">{{empresa_nombre}}</div>
+      <div class="r-logo-sub">{{titulo_documento}}</div>
+    </div>
+    <div class="r-badge">
+      <div class="r-badge-label">Recibo Legal Nº</div>
+      <div class="r-badge-num">{{numero_recibo_legal}}</div>
+      <div><span class="r-badge-status">Efectivado</span></div>
+    </div>
+  </div>
+
+  <!-- ═══ META ═══ -->
+  <div class="r-meta">
+    <div class="r-meta-left">
+      <div class="r-field">
+        <div class="r-field-label">Recibido de</div>
+        <div class="r-field-value big">{{entidad_cabecera}}</div>
+      </div>
+      {{#if ruc_entidad}}
+      <div class="r-field">
+        <div class="r-field-label">RUC / CI</div>
+        <div class="r-field-value">{{ruc_entidad}}</div>
+      </div>
+      {{/if}}
+      {{#if descripcion}}
+      <div class="r-field">
+        <div class="r-field-label">Concepto</div>
+        <div class="r-field-value">{{descripcion}}</div>
+      </div>
+      {{/if}}
+    </div>
+    <div class="r-meta-right">
+      <div class="r-field">
+        <div class="r-field-label">Fecha y hora</div>
+        <div class="r-field-value">{{fecha_f}}</div>
+      </div>
+      <div class="r-field">
+        <div class="r-field-label">Moneda</div>
+        <div class="r-field-value">{{moneda}}</div>
+      </div>
+      <div class="r-field">
+        <div class="r-field-label">Usuario responsable</div>
+        <div class="r-field-value">{{usuario}}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ IMPUTACIÓN DE CUENTAS ═══ -->
+  <div class="r-section-title">Imputación de cuentas</div>
+  <table>
+    <thead>
+      <tr>
+        <th style="width:38%">Cuenta</th>
+        <th class="col-right">Base</th>
+        <th class="col-right">Interés</th>
+        <th class="col-right">Descuento</th>
+        <th class="col-right">Neto</th>
+        <th class="col-right">Contable</th>
+        <th class="col-center">Mon.</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{#each detalles}}
+        {{#if (eq naturaleza 'CRÉDITO')}}
+        <tr>
+          <td>
+            <div class="desc-main">{{cuenta}}</div>
+            <div class="desc-sub">{{naturaleza}} · {{moneda}}</div>
+          </td>
+          <td class="col-right col-mono">{{valor_f}}</td>
+          <td class="col-right col-mono val-interest">
+            {{#if interes}}{{interes}}{{else}}—{{/if}}
+          </td>
+          <td class="col-right col-mono val-discount">
+            {{#if descuento}}{{descuento}}{{else}}—{{/if}}
+          </td>
+          <td class="col-right col-mono val-bold">
+            {{#if valor_neto}}{{valor_neto}}{{else}}{{valor_f}}{{/if}}
+          </td>
+          <td class="col-right col-mono">{{valor_contable_f}}</td>
+          <td class="col-center" style="font-size:7.5pt">{{moneda}}</td>
+        </tr>
+        {{/if}}
+      {{/each}}
+    </tbody>
+  </table>
+
+  <!-- ═══ FACTURAS VINCULADAS ═══ -->
+  {{#if tiene_facturas}}
+  <div class="r-section-title">Facturas vinculadas</div>
+  <table>
+    <thead>
+      <tr>
+        <th style="width:28%">Nº Factura</th>
+        <th class="col-center">Emisión</th>
+        <th class="col-center">Vencimiento</th>
+        <th class="col-center">Compensación</th>
+        <th class="col-right">Base</th>
+        <th class="col-right">Neto</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{#each detalles}}
+        {{#if (eq tipo_documento 'FACTURA')}}
+        <tr>
+          <td class="col-mono val-bold">{{documento}}</td>
+          <td class="col-center" style="font-size:8pt">
+            {{#if emision_f}}{{emision_f}}{{else}}—{{/if}}
+          </td>
+          <td class="col-center" style="font-size:8pt">
+            {{#if vencimiento_f}}{{vencimiento_f}}{{else}}—{{/if}}
+          </td>
+          <td class="col-center" style="font-size:8pt">
+            {{#if compensacion_f}}{{compensacion_f}}{{else}}—{{/if}}
+          </td>
+          <td class="col-right col-mono">{{valor_f}}</td>
+          <td class="col-right col-mono val-bold">
+            {{#if valor_neto}}{{valor_neto}}{{else}}{{valor_f}}{{/if}}
+          </td>
+        </tr>
+        {{/if}}
+      {{/each}}
+    </tbody>
+  </table>
+  {{/if}}
+
+  <!-- ═══ VALORES RECIBIDOS ═══ -->
+  <div class="r-section-title">Valores recibidos</div>
+  <table>
+    <thead>
+      <tr>
+        <th style="width:55%">Forma de pago / Descripción</th>
+        <th class="col-center">Moneda</th>
+        <th class="col-right">Importe</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{#each detalles}}
+        {{#if (eq naturaleza 'DÉBITO')}}
+        <tr>
+          <td>
+            <div class="desc-main">{{cuenta}}</div>
+            {{#if observacion}}
+            <div class="desc-sub">{{observacion}}</div>
+            {{/if}}
+          </td>
+          <td class="col-center" style="font-size:8pt">{{moneda}}</td>
+          <td class="col-right col-mono val-bold">{{valor_f}}</td>
+        </tr>
+        {{/if}}
+      {{/each}}
+    </tbody>
+  </table>
+
+  <!-- ═══ MONTO EN LETRAS ═══ -->
+  <div class="r-letras">
+    <div class="r-letras-bar"></div>
+    <div>
+      <div class="r-letras-label">Monto en letras</div>
+      <div class="r-letras-text">{{total_en_letras}}</div>
+    </div>
+  </div>
+
+  <!-- ═══ SUBTOTALES ═══ -->
+  <div class="r-totals">
+    <div class="r-totals-row">
+      <span class="lbl">Subtotal base</span>
+      <span class="val">{{subtotal_base_f}}</span>
+    </div>
+    {{#if subtotal_interes_f}}
+    <div class="r-totals-row">
+      <span class="lbl" style="color:#dc2626">+ Intereses</span>
+      <span class="val" style="color:#dc2626">{{subtotal_interes_f}}</span>
+    </div>
+    {{/if}}
+    {{#if subtotal_descuento_f}}
+    <div class="r-totals-row">
+      <span class="lbl" style="color:#16a34a">− Descuentos</span>
+      <span class="val" style="color:#16a34a">{{subtotal_descuento_f}}</span>
+    </div>
+    {{/if}}
+  </div>
+
+  <!-- ═══ TOTAL FINAL ═══ -->
+  <div class="r-total-final">
+    <span class="lbl">Total recibido · {{moneda}}</span>
+    <span class="val">{{simbolo_moneda}} {{total_formateado}}</span>
+  </div>
+
+  <!-- ═══ FIRMAS ═══ -->
+  <div class="r-sigs">
+    <div class="r-sig-box">
+      <div class="r-sig-spacer"></div>
+      <div class="r-sig-line">Firma del cliente</div>
+      <div class="r-sig-name">{{entidad_cabecera}}</div>
+    </div>
+    <div class="r-sig-box">
+      <div class="r-sig-spacer"></div>
+      <div class="r-sig-line">Firma del responsable</div>
+      <div class="r-sig-name">{{usuario}}</div>
+    </div>
+  </div>
+
+  <!-- ═══ FOOTER ═══ -->
+  <div class="r-footer">
+    <p>Documento generado por {{empresa_nombre}}</p>
+    <p>{{otrosDatosEmpresa}}</p>
+    <p>Recibo Nº {{numero_recibo_legal}}</p>
+  </div>
+
+</div>
+
+</body>
+</html>
