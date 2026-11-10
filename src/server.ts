@@ -24,7 +24,7 @@ const app: Application = express();
 const origenesPermitidos = [
   'http://localhost:4200',
   'http://localhost:5173',
-  'https://mi-app.com',
+  'https://front-hysistemas.onrender.com',
   process.env.FRONTEND_URL,
 ].filter(Boolean) as string[];
 
