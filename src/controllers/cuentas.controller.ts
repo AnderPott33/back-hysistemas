@@ -153,7 +153,7 @@ export const ActualizarCuenta = async (req: Request, res: Response) => {
         }
 
         const result = await query(`
-            INSERT INTO cuenta (nombre, tipo, moneda_id, banco_nombre, numero_cuenta, saldo_inicial, activo, permite_lanzamiento_tarjeta,)
+            INSERT INTO cuenta (nombre, tipo, moneda_id, banco_nombre, numero_cuenta, saldo_inicial, activo, permite_lanzamiento_tarjeta)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
             RETURNING *
         `, [
