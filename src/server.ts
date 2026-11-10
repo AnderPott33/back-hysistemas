@@ -1,5 +1,6 @@
 import express, { Application } from 'express';
 import cors from 'cors';
+import axios from 'axios';
 
 import usuariosRoutes from './routes/usuarios.route.js';
 import cajasRoutes from './routes/cajas.routes.js';
@@ -59,4 +60,17 @@ app.use('/api/extractoCajaBanco', extractoCajaBancoRoutes);
 app.use('/api/asientos', asientosRoutes);
 
 
+
+// Consulta RUC en el SET (proxy para evitar CORS en el frontend)
+app.get('/api/ruc/:ruc', async (req, res) => {
+  const ruc = String(req.params.ruc).replace(/\D/g, '');
+  if (!ruc) return res.status(400).json({ message: 'RUC inválido' });
+  try {
+    const { data } = await axios.get(`https://ruc.sun.com.py/api/ruc/${ruc}`, { timeout: 10000 });
+    res.json(data);
+  } catch (err: any) {
+    console.error('Error consultando RUC:', err.message, err.response?.status, err.response?.data);
+    res.status(err.response?.status || 502).json({ message: 'No se pudo consultar el RUC' });
+  }
+});
 export default app;
