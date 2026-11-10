@@ -469,8 +469,8 @@ export const crearMonedasIniciales = async () => {
 export const crearGrupoAdministrador = async () => {
   await query(
     `INSERT INTO grupo_privilegios (nombre, privilegios)
-     SELECT $1, $2::json
-     WHERE NOT EXISTS (SELECT 1 FROM grupo_privilegios WHERE nombre = $1)`,
+     SELECT $1::varchar, $2::json
+     WHERE NOT EXISTS (SELECT 1 FROM grupo_privilegios WHERE nombre = $1::varchar)`,
     [GRUPO_ADMINISTRADOR_NOMBRE, JSON.stringify(PRIVILEGIOS_ADMINISTRADOR)]
   );
   console.log('   ✓ Grupo Administrador verificado');
@@ -503,7 +503,7 @@ export const crearUsuarioMaster = async () => {
   await query(
     `INSERT INTO usuarios (nombre, email, contrasena, grupo_privilegios, activo, es_usuario_master)
      VALUES ($1, $2, $3,
-       (SELECT id FROM grupo_privilegios WHERE nombre = $4),
+       (SELECT id FROM grupo_privilegios WHERE nombre = $4::varchar),
        TRUE, TRUE)`,
     [nombre, email, hash, GRUPO_ADMINISTRADOR_NOMBRE]
   );
