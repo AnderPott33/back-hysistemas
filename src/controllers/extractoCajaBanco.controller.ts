@@ -6,7 +6,7 @@ import { query } from '../db/db.js';
 const COLUMNA_FORMA_PAGO = 'forma_pago';
 
 const ENTIDADES = ['Caja', 'Cuenta'];
-const REGEX_FECHA = /^(\d{4}-\d{2}-\d{2})/;
+const REGEX_FECHA = /^(\d{4})[-/](\d{2})[-/](\d{2})$/;
 
 const esVacio = (valor: unknown) => valor === undefined || valor === null || valor === '';
 
@@ -17,12 +17,20 @@ const aEntero = (valor: unknown): number | null | undefined => {
     return n > 0 ? n : null;
 };
 
+// Acepta YYYY-MM-DD o YYYY/MM/DD, y devuelve siempre YYYY-MM-DD.
+// Rechaza fechas inexistentes como 2026/02/30.
 const aFecha = (valor: unknown): string | null | undefined => {
     if (esVacio(valor)) return null;
     if (typeof valor !== 'string') return undefined;
-    const match = valor.match(REGEX_FECHA);
+    const match = valor.trim().match(REGEX_FECHA);
     if (!match) return undefined;
-    return isNaN(Date.parse(match[1])) ? undefined : match[1];
+
+    const [, anio, mes, dia] = match;
+    const normalizada = `${anio}-${mes}-${dia}`;
+    const fecha = new Date(`${normalizada}T00:00:00Z`);
+    if (isNaN(fecha.getTime()) || fecha.toISOString().slice(0, 10) !== normalizada) return undefined;
+
+    return normalizada;
 };
 
 const aBooleano = (valor: unknown): boolean | undefined => {
@@ -48,7 +56,7 @@ export const extractoCajaBanco = async (req: Request, res: Response) => {
         return res.status(400).json({ error: 'caja_id, cuenta_id y moneda_id deben ser enteros o null' });
     }
     if (fechaInicio === undefined || fechaFin === undefined) {
-        return res.status(400).json({ error: 'fecha_inicio y fecha_fin deben tener formato YYYY-MM-DD o ser null' });
+        return res.status(400).json({ error: 'fecha_inicio y fecha_fin deben tener formato YYYY-MM-DD o YYYY/MM/DD, o ser null' });
     }
     if (fechaInicio && fechaFin && fechaInicio > fechaFin) {
         return res.status(400).json({ error: 'fecha_inicio no puede ser mayor a fecha_fin' });
@@ -60,7 +68,8 @@ export const extractoCajaBanco = async (req: Request, res: Response) => {
         return res.status(400).json({ error: 'consolidado debe ser boolean o null' });
     }
 
-    // Desde el día inicial a las 00:00:00 y hasta el día final a las 23:59:59.999999
+    // Desde las 00:00:00 del día inicial hasta las 23:59:59.999999 del día final.
+    // Se usa .999999 para no perder movimientos con fracciones de segundo.
     const desde = fechaInicio ? `${fechaInicio} 00:00:00` : null;
     const hasta = fechaFin ? `${fechaFin} 23:59:59.999999` : null;
 
@@ -276,8 +285,9 @@ export const extractoCajaBanco = async (req: Request, res: Response) => {
 
 // ---------- SALDO DE UNA CUENTA ----------
 
-// Saldo actual de la cuenta: suma débitos, resta créditos, solo asientos efectivados.
-// Usa el mismo importe que el extracto (COALESCE(valor_convertido, valor)).
+// Saldo de la cuenta al cierre de fecha_fin (inclusive), según fecha_contable.
+// Solo asientos efectivados. Usa el mismo importe que el extracto (COALESCE(valor_convertido, valor)).
+// Usa $1 cuenta, $2 hasta (timestamp o null, si no viene fecha_fin suma todo).
 const SQL_SALDO_CUENTA = `
     SELECT
         COALESCE(SUM(
@@ -289,6 +299,7 @@ const SQL_SALDO_CUENTA = `
     FROM public.asiento a
     WHERE a.estado = 'Efectivado'
       AND a.cuenta_id = $1::int
+      AND ($2::timestamp IS NULL OR a.fecha_contable <= $2::timestamp)
 `;
 
 export const saldoCuenta = async (req: Request, res: Response) => {
@@ -298,12 +309,20 @@ export const saldoCuenta = async (req: Request, res: Response) => {
         return res.status(400).json({ error: 'El id de la cuenta debe ser un entero positivo' });
     }
 
+    const fechaFin = aFecha(req.query.fecha_fin);
+    if (fechaFin === undefined) {
+        return res.status(400).json({ error: 'fecha_fin debe tener formato YYYY-MM-DD o YYYY/MM/DD' });
+    }
+    // Hasta las 23:59:59.999999 del día final.
+    const hasta = fechaFin ? `${fechaFin} 23:59:59.999999` : null;
+
     try {
-        const result = await query(SQL_SALDO_CUENTA, [cuentaId]);
+        const result = await query(SQL_SALDO_CUENTA, [cuentaId, hasta]);
         const saldo = Number(result.rows[0]?.saldo ?? 0);
 
         return res.status(200).json({
             cuenta_id: cuentaId,
+            fecha_fin: fechaFin,
             saldo,
         });
     } catch (error) {
