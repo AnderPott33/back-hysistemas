@@ -64,7 +64,8 @@ export const extractoCajaBanco = async (req: Request, res: Response) => {
     const desde = fechaInicio ? `${fechaInicio} 00:00:00` : null;
     const hasta = fechaFin ? `${fechaFin} 23:59:59.999999` : null;
 
-    // Bloque común de movimientos del extracto: filtra por caja_id / cuenta_id
+    // Bloque común de movimientos del extracto: filtra por caja_id / cuenta_id.
+    // La fecha de referencia del extracto es fecha_contable (no emision).
     const baseSQL = `
     WITH base AS (
         SELECT
@@ -88,7 +89,8 @@ export const extractoCajaBanco = async (req: Request, res: Response) => {
             b.moneda_efectiva                               AS moneda_id,
             b.movimiento_id                                 AS movimiento_id,
             b.id                                            AS detalle_id,
-            b.emision                                       AS fecha,
+            b.fecha_contable                                AS fecha,
+            b.emision                                       AS emision,
             COALESCE(m.observacion, '')                     AS descripcion,
             COALESCE(b.historico, '')                       AS descripcion_baja,
             COALESCE(b.${COLUMNA_FORMA_PAGO}::text, 'Sin forma de pago') AS forma_pago,
@@ -132,7 +134,8 @@ export const extractoCajaBanco = async (req: Request, res: Response) => {
      AND pr.moneda_id = k.moneda_id
     ORDER BY k.entidad, k.entidad_id, k.moneda_id`;
 
-    // Movimientos del periodo. El saldo parte del saldo anterior solo si consolidado = true. Usa $1..$7.
+    // Movimientos del periodo, filtrados y ordenados por fecha_contable.
+    // El saldo parte del saldo anterior solo si consolidado = true. Usa $1..$7.
     const sqlMovimientos = `${baseSQL},
     previo AS (
         SELECT entidad, entidad_id, moneda_id,
@@ -153,7 +156,8 @@ export const extractoCajaBanco = async (req: Request, res: Response) => {
         p.entidad_id,
         p.moneda_id,
         p.movimiento_id,
-        p.fecha,
+        TO_CHAR(p.fecha, 'YYYY-MM-DD') AS fecha,
+        p.emision,
         p.detalle_id,
         p.detalle_id AS asiento_id,
         p.descripcion,
@@ -177,7 +181,7 @@ export const extractoCajaBanco = async (req: Request, res: Response) => {
      AND pr.moneda_id = p.moneda_id
     ORDER BY p.entidad, p.entidad_id, p.moneda_id, p.fecha, p.detalle_id`;
 
-    // Totales por forma de pago.
+    // Totales por forma de pago, por fecha_contable.
     // - Con caja_id: incluye TODAS las formas de pago que tienen esa caja en caja_movimiento,
     //   aunque el asiento afecte una cuenta (lanzamiento, cheque, tarjeta).
     // - Con cuenta_id: se limita a esa cuenta.
@@ -206,7 +210,7 @@ export const extractoCajaBanco = async (req: Request, res: Response) => {
                     END
                 ELSE COALESCE(b.${COLUMNA_FORMA_PAGO}::text, 'Sin forma de pago')
             END AS forma_pago,
-            b.emision AS fecha,
+            b.fecha_contable AS fecha_contable,
             CASE WHEN b.naturaleza = 'Débito'  THEN b.importe ELSE NULL END AS entrada,
             CASE WHEN b.naturaleza = 'Crédito' THEN b.importe ELSE NULL END AS salida,
             CASE WHEN b.naturaleza = 'Débito'
@@ -219,14 +223,14 @@ export const extractoCajaBanco = async (req: Request, res: Response) => {
                COALESCE(SUM(neto), 0) AS saldo_previo
         FROM fp
         WHERE $4::timestamp IS NOT NULL
-          AND fecha < $4::timestamp
+          AND fecha_contable < $4::timestamp
         GROUP BY forma_pago
     ),
     periodo AS (
         SELECT *
         FROM fp
-        WHERE ($4::timestamp IS NULL OR fecha >= $4::timestamp)
-          AND ($5::timestamp IS NULL OR fecha <= $5::timestamp)
+        WHERE ($4::timestamp IS NULL OR fecha_contable >= $4::timestamp)
+          AND ($5::timestamp IS NULL OR fecha_contable <= $5::timestamp)
     ),
     por_periodo AS (
         SELECT forma_pago,
