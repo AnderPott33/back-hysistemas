@@ -75,10 +75,13 @@ export const extractoCajaBanco = async (req: Request, res: Response) => {
 
     // Bloque común de movimientos del extracto: filtra por caja_id / cuenta_id.
     // La fecha de referencia del extracto es fecha_contable (no emision).
+    // fecha_contable puede estar guardada como texto YYYY/MM/DD o como date/timestamp:
+    // REPLACE normaliza ambos casos a YYYY-MM-DD antes de castear a timestamp.
     const baseSQL = `
     WITH base AS (
         SELECT
             a.*,
+            REPLACE(a.fecha_contable::text, '/', '-')::timestamp AS fecha_ts,
             CASE WHEN a.caja_id IS NULL THEN COALESCE(a.valor_convertido, a.valor) ELSE a.valor END AS importe,
             CASE WHEN a.caja_id IS NULL THEN c.moneda_id       ELSE a.moneda_id END AS moneda_efectiva
         FROM public.asiento a
@@ -98,7 +101,7 @@ export const extractoCajaBanco = async (req: Request, res: Response) => {
             b.moneda_efectiva                               AS moneda_id,
             b.movimiento_id                                 AS movimiento_id,
             b.id                                            AS detalle_id,
-            b.fecha_contable                                AS fecha,
+            b.fecha_ts                                      AS fecha,
             b.emision                                       AS emision,
             COALESCE(m.observacion, '')                     AS descripcion,
             COALESCE(b.historico, '')                       AS descripcion_baja,
@@ -201,6 +204,7 @@ export const extractoCajaBanco = async (req: Request, res: Response) => {
     WITH base AS (
         SELECT
             a.*,
+            REPLACE(a.fecha_contable::text, '/', '-')::timestamp AS fecha_ts,
             CASE WHEN a.caja_id IS NULL THEN COALESCE(a.valor_convertido, a.valor) ELSE a.valor END AS importe,
             CASE WHEN a.caja_id IS NULL THEN c.moneda_id       ELSE a.moneda_id END AS moneda_efectiva
         FROM public.asiento a
@@ -213,13 +217,14 @@ export const extractoCajaBanco = async (req: Request, res: Response) => {
         SELECT
             CASE
                 WHEN b.${COLUMNA_FORMA_PAGO} = 'Cheque' THEN
-                    CASE WHEN b.vencimiento IS NULL OR b.vencimiento::date <= CURRENT_DATE
+                    CASE WHEN b.vencimiento IS NULL
+                           OR REPLACE(b.vencimiento::text, '/', '-')::date <= CURRENT_DATE
                          THEN 'Cheque disponible'
                          ELSE 'Cheque pre datado'
                     END
                 ELSE COALESCE(b.${COLUMNA_FORMA_PAGO}::text, 'Sin forma de pago')
             END AS forma_pago,
-            b.fecha_contable AS fecha_contable,
+            b.fecha_ts AS fecha_contable,
             CASE WHEN b.naturaleza = 'Débito'  THEN b.importe ELSE NULL END AS entrada,
             CASE WHEN b.naturaleza = 'Crédito' THEN b.importe ELSE NULL END AS salida,
             CASE WHEN b.naturaleza = 'Débito'
@@ -287,7 +292,7 @@ export const extractoCajaBanco = async (req: Request, res: Response) => {
 
 // Saldo de la cuenta al cierre de fecha_fin (inclusive), según fecha_contable.
 // Solo asientos efectivados. Usa el mismo importe que el extracto (COALESCE(valor_convertido, valor)).
-// Usa $1 cuenta, $2 hasta (timestamp o null, si no viene fecha_fin suma todo).
+// Usa $1 cuenta, $2 hasta (timestamp o null; si no viene fecha_fin suma todo).
 const SQL_SALDO_CUENTA = `
     SELECT
         COALESCE(SUM(
@@ -299,7 +304,8 @@ const SQL_SALDO_CUENTA = `
     FROM public.asiento a
     WHERE a.estado = 'Efectivado'
       AND a.cuenta_id = $1::int
-      AND ($2::timestamp IS NULL OR a.fecha_contable <= $2::timestamp)
+      AND ($2::timestamp IS NULL
+           OR REPLACE(a.fecha_contable::text, '/', '-')::timestamp <= $2::timestamp)
 `;
 
 export const saldoCuenta = async (req: Request, res: Response) => {
