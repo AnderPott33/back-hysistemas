@@ -160,7 +160,7 @@ CREATE TABLE IF NOT EXISTS public.cuenta (
 	CONSTRAINT cuenta_moneda_id_fkey FOREIGN KEY (moneda_id) REFERENCES public.moneda(id) ON DELETE RESTRICT
 );`,
   },
-  {
+    {
     nombre: 'tipo_cambio',
     sql: `
 CREATE TABLE IF NOT EXISTS public.tipo_cambio (
@@ -171,6 +171,7 @@ CREATE TABLE IF NOT EXISTS public.tipo_cambio (
 	fecha date NOT NULL,
 	activo bool DEFAULT true NULL,
 	creado_en timestamptz DEFAULT now() NULL,
+	grupo_id uuid NULL,
 	CONSTRAINT tipo_cambio_pkey PRIMARY KEY (id),
 	CONSTRAINT tipo_cambio_destino_fk FOREIGN KEY (moneda_destino) REFERENCES public.moneda(id) ON DELETE CASCADE,
 	CONSTRAINT tipo_cambio_origen_fk FOREIGN KEY (moneda_origen) REFERENCES public.moneda(id) ON DELETE CASCADE

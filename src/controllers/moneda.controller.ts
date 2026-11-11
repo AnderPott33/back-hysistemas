@@ -149,6 +149,7 @@ export const ListarTiposCambio = async (req: Request, res: Response) => {
         const result = await query(`
             SELECT
                 tc.id,
+                tc.grupo_id,
                 tc.moneda_origen,
                 mo.codigo  AS origen_codigo,
                 mo.nombre  AS origen_nombre,
@@ -221,7 +222,7 @@ export const ListarTipoCambioId = async (req: Request, res: Response) => {
 
     try {
         const result = await query(`
-            SELECT tc.id, tc.moneda_origen, tc.moneda_destino,
+            SELECT tc.id, tc.grupo_id, tc.moneda_origen, tc.moneda_destino,
                 tc.valor, tc.fecha, tc.activo, tc.creado_en,
                 mo.codigo AS origen_codigo, mo.simbolo AS origen_simbolo,
                 md.codigo AS destino_codigo, md.simbolo AS destino_simbolo
@@ -242,8 +243,13 @@ export const ListarTipoCambioId = async (req: Request, res: Response) => {
     }
 };
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const toUuidOrNull = (valor: unknown): string | null =>
+    typeof valor === 'string' && UUID_REGEX.test(valor) ? valor : null;
+
 export const ActualizarTipoCambio = async (req: Request, res: Response) => {
-    const { id, moneda_origen, moneda_destino, valor, fecha, activo } = req.body;
+    const { id, moneda_origen, moneda_destino, valor, fecha, activo, grupo_id } = req.body;
 
     if (!moneda_origen || !moneda_destino || !valor) {
         return respuestaError(res, 400, "Faltan campos requeridos");
@@ -255,28 +261,51 @@ export const ActualizarTipoCambio = async (req: Request, res: Response) => {
 
     try {
         const desde = toISO(fecha);
+        const grupo = toUuidOrNull(grupo_id);
 
         if (id) {
             if (!esNumero(id)) {
                 return respuestaError(res, 400, "El ID debe ser un número válido");
             }
 
+            // COALESCE conserva el grupo actual si el front no envía uno válido
             await query(`
                 UPDATE tipo_cambio SET
-                    moneda_origen=$1, moneda_destino=$2, valor=$3,
-                    fecha=$4,  activo=$5
-                WHERE id=$7
-            `, [parseInt(String(moneda_origen), 10), parseInt(String(moneda_destino), 10), valor, desde, activo, parseInt(String(id), 10)]);
+                    moneda_origen = $1,
+                    moneda_destino = $2,
+                    valor = $3,
+                    fecha = $4,
+                    activo = $5,
+                    grupo_id = COALESCE($6::uuid, grupo_id)
+                WHERE id = $7
+            `, [
+                parseInt(String(moneda_origen), 10),
+                parseInt(String(moneda_destino), 10),
+                valor,
+                desde,
+                activo ?? true,
+                grupo,
+                parseInt(String(id), 10),
+            ]);
         } else {
+            // Si no llega grupo, la fila queda en un grupo propio
             await query(`
-                INSERT INTO tipo_cambio (moneda_origen, moneda_destino, valor, fecha, activo)
-                VALUES ($1,$2,$3,$4,$5)
-            `, [parseInt(String(moneda_origen), 10), parseInt(String(moneda_destino), 10), valor, desde,  activo ?? true]);
+                INSERT INTO tipo_cambio (moneda_origen, moneda_destino, valor, fecha, activo, grupo_id)
+                VALUES ($1, $2, $3, $4, $5, COALESCE($6::uuid, gen_random_uuid()))
+            `, [
+                parseInt(String(moneda_origen), 10),
+                parseInt(String(moneda_destino), 10),
+                valor,
+                desde,
+                activo ?? true,
+                grupo,
+            ]);
         }
+
         res.status(200).json({ mensaje: 'Cotización guardada correctamente' });
     } catch (error) {
         console.error(error);
-        respuestaError(res, 500, "No se pudo guardar el Cotización")
+        respuestaError(res, 500, "No se pudo guardar la cotización");
     }
 };
 
