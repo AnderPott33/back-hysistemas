@@ -66,7 +66,7 @@ app.get('/api/ruc/:ruc', async (req, res) => {
   const ruc = String(req.params.ruc).replace(/\D/g, '');
   if (!ruc) return res.status(400).json({ message: 'RUC inválido' });
   try {
-    const { data } = await axios.get(`https://ruc.sun.com.py/api/ruc/${ruc}`, { timeout: 10000 });
+    const { data } = await axios.get(`https://turuc.com.py/api/contribuyente/${ruc}`, { timeout: 10000 });
     res.json(data);
   } catch (err: any) {
     console.error('Error consultando RUC:', err.message, err.response?.status, err.response?.data);
