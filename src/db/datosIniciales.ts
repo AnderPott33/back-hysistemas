@@ -232,11 +232,42 @@ CREATE TABLE IF NOT EXISTS public.persona (
 	creado_en timestamptz DEFAULT now() NULL,
 	actualizado_en timestamptz DEFAULT now() NULL,
 	observacion varchar(255) NULL,
+	limite_credito numeric(18, 2) NULL,
 	CONSTRAINT persona_cedula_key UNIQUE (cedula),
 	CONSTRAINT persona_pkey PRIMARY KEY (id),
 	CONSTRAINT persona_ruc_key UNIQUE (ruc),
 	CONSTRAINT persona_tipo_persona_check CHECK (((tipo_persona)::text = ANY (ARRAY[('Física'::character varying)::text, ('Jurídica'::character varying)::text])))
 );`,
+  },
+  {
+    nombre: 'credito_persona_movimiento',
+    sql: `
+CREATE TABLE IF NOT EXISTS public.credito_persona_movimiento (
+	id bigserial NOT NULL,
+	grupo_id uuid NOT NULL,
+	persona_id int8 NOT NULL,
+	moneda_id int4 NOT NULL,
+	naturaleza varchar(10) NOT NULL,
+	valor numeric(18, 2) NOT NULL,
+	cambio numeric(18, 4) NOT NULL,
+	valor_convertido numeric(18, 2) NOT NULL,
+	tipo varchar(30) DEFAULT 'AJUSTE'::character varying NOT NULL,
+	movimiento_id int8 NULL,
+	observacion varchar(255) NULL,
+	estado varchar(20) DEFAULT 'Efectivado'::character varying NOT NULL,
+	creado_por int4 NOT NULL,
+	creado_en timestamptz DEFAULT now() NOT NULL,
+	CONSTRAINT credito_persona_mov_estado_check CHECK (((estado)::text = ANY ((ARRAY['Efectivado'::character varying, 'Cancelado'::character varying])::text[]))),
+	CONSTRAINT credito_persona_mov_naturaleza_check CHECK (((naturaleza)::text = ANY ((ARRAY['Credito'::character varying, 'Debito'::character varying])::text[]))),
+	CONSTRAINT credito_persona_mov_pkey PRIMARY KEY (id),
+	CONSTRAINT credito_persona_mov_valor_check CHECK ((valor > (0)::numeric)),
+	CONSTRAINT credito_persona_mov_moneda_fk FOREIGN KEY (moneda_id) REFERENCES public.moneda(id),
+	CONSTRAINT credito_persona_mov_movimiento_fk FOREIGN KEY (movimiento_id) REFERENCES public.movimientos(id) ON DELETE SET NULL,
+	CONSTRAINT credito_persona_mov_persona_fk FOREIGN KEY (persona_id) REFERENCES public.persona(id) ON DELETE RESTRICT,
+	CONSTRAINT credito_persona_mov_usuario_fk FOREIGN KEY (creado_por) REFERENCES public.usuarios(id)
+);
+CREATE INDEX idx_credito_persona_grupo ON public.credito_persona_movimiento USING btree (grupo_id);
+CREATE INDEX idx_credito_persona_persona ON public.credito_persona_movimiento USING btree (persona_id, moneda_id) WHERE ((estado)::text = 'Efectivado'::text);`,
   },
   {
     nombre: 'movimientos',
