@@ -160,7 +160,7 @@ CREATE TABLE IF NOT EXISTS public.cuenta (
 	CONSTRAINT cuenta_moneda_id_fkey FOREIGN KEY (moneda_id) REFERENCES public.moneda(id) ON DELETE RESTRICT
 );`,
   },
-    {
+  {
     nombre: 'tipo_cambio',
     sql: `
 CREATE TABLE IF NOT EXISTS public.tipo_cambio (
@@ -240,6 +240,25 @@ CREATE TABLE IF NOT EXISTS public.persona (
 );`,
   },
   {
+    nombre: 'movimientos',
+    sql: `
+CREATE TABLE IF NOT EXISTS public.movimientos (
+	id bigserial NOT NULL,
+	creado_en timestamptz DEFAULT now() NULL,
+	caja_id int4 NOT NULL,
+	fecha timestamptz NULL,
+	usuario_id int4 NOT NULL,
+	estado varchar(50) NULL,
+	motivo_cancelado varchar(255) NULL,
+	observacion varchar(255) NULL,
+	moneda_id int4 NULL,
+	tipo_movimiento varchar(100) NULL,
+	CONSTRAINT movimientos_pkey PRIMARY KEY (id),
+	CONSTRAINT movimientos_caja_id_fkey FOREIGN KEY (caja_id) REFERENCES public.cajas(id) ON DELETE CASCADE,
+	CONSTRAINT movimientos_usuario_id_fkey FOREIGN KEY (usuario_id) REFERENCES public.usuarios(id) ON DELETE CASCADE
+);`,
+  },
+  {
     nombre: 'credito_persona_movimiento',
     sql: `
 CREATE TABLE IF NOT EXISTS public.credito_persona_movimiento (
@@ -268,25 +287,6 @@ CREATE TABLE IF NOT EXISTS public.credito_persona_movimiento (
 );
 CREATE INDEX idx_credito_persona_grupo ON public.credito_persona_movimiento USING btree (grupo_id);
 CREATE INDEX idx_credito_persona_persona ON public.credito_persona_movimiento USING btree (persona_id, moneda_id) WHERE ((estado)::text = 'Efectivado'::text);`,
-  },
-  {
-    nombre: 'movimientos',
-    sql: `
-CREATE TABLE IF NOT EXISTS public.movimientos (
-	id bigserial NOT NULL,
-	creado_en timestamptz DEFAULT now() NULL,
-	caja_id int4 NOT NULL,
-	fecha timestamptz NULL,
-	usuario_id int4 NOT NULL,
-	estado varchar(50) NULL,
-	motivo_cancelado varchar(255) NULL,
-	observacion varchar(255) NULL,
-	moneda_id int4 NULL,
-	tipo_movimiento varchar(100) NULL,
-	CONSTRAINT movimientos_pkey PRIMARY KEY (id),
-	CONSTRAINT movimientos_caja_id_fkey FOREIGN KEY (caja_id) REFERENCES public.cajas(id) ON DELETE CASCADE,
-	CONSTRAINT movimientos_usuario_id_fkey FOREIGN KEY (usuario_id) REFERENCES public.usuarios(id) ON DELETE CASCADE
-);`,
   },
   {
     nombre: 'bajas',
@@ -547,30 +547,51 @@ export const crearUsuarioMaster = async () => {
 // ============================================
 
 /**
- * Crea las tablas, los índices, el grupo Administrador y el usuario master.
- * Es seguro ejecutarlo en cada arranque: no duplica datos existentes.
+ * Cuenta cuántas de las tablas del esquema ya existen en el schema public.
+ */
+const contarTablasExistentes = async (): Promise<number> => {
+  const res = await query(
+    `SELECT COUNT(*)::int AS count
+     FROM information_schema.tables
+     WHERE table_schema = 'public' AND table_name = ANY($1::text[])`,
+    [TABLAS.map((t) => t.nombre)]
+  );
+  return res.rows[0].count;
+};
+
+/**
+ * Crea las tablas y los índices solo si la base de datos no tiene ninguna
+ * de las tablas del esquema. Los datos iniciales se verifican siempre.
  */
 export const initializeDatabase = async () => {
-  console.log('\n⏳ Creando estructura de base de datos...\n');
+  console.log('\n⏳ Verificando estructura de base de datos...\n');
 
-  for (const tabla of TABLAS) {
-    try {
-      await query(tabla.sql);
-      console.log(`   ✓ Tabla ${tabla.nombre} creada`);
-    } catch (error) {
-      console.error(`   ❌ Error creando tabla ${tabla.nombre}:`, error);
-      throw error;
-    }
-  }
+  const existentes = await contarTablasExistentes();
 
-  for (const indice of INDICES) {
-    try {
-      await query(indice.sql);
-    } catch (error) {
-      console.warn(`   ⚠️  Error creando índice de ${indice.nombre}:`, error);
+  if (existentes === 0) {
+    console.log('   ⏳ Base vacía: creando tablas...');
+
+    for (const tabla of TABLAS) {
+      try {
+        await query(tabla.sql);
+        console.log(`   ✓ Tabla ${tabla.nombre} creada`);
+      } catch (error) {
+        console.error(`   ❌ Error creando tabla ${tabla.nombre}:`, error);
+        throw error;
+      }
     }
+
+    for (const indice of INDICES) {
+      try {
+        await query(indice.sql);
+      } catch (error) {
+        console.warn(`   ⚠️  Error creando índice de ${indice.nombre}:`, error);
+      }
+    }
+    console.log('   ✓ Índices creados');
+  } else {
+    console.log(`   ℹ️  Estructura existente (${existentes} tablas), se omite creación`);
   }
-  console.log('   ✓ Índices creados');
 
   console.log('\n📌 Datos iniciales...');
   await crearMonedasIniciales();
