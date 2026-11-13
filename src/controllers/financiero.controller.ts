@@ -5,7 +5,12 @@ import {
     cancelarAsientosDeMovimiento,
     ErrorValidacionAsiento,
     DatosAsiento,
+    TipoAsiento,
 } from '../services/asiento.service.js';
+import {
+    insertarCreditosDeLanzamientos,
+    cancelarCreditosDeMovimiento,
+} from '../services/lanzamientoCredito.service.js';
 
 interface RequestWithUser extends Request {
     user?: { id: number };
@@ -165,12 +170,22 @@ const valoresBaja = (baja: any) => {
 };
 
 /**
+ * Operaciones del front que son lanzamientos de crédito de persona.
+ * No generan asiento propio: su cobro en caja se registra en construirAsientosCaja.
+ */
+const OPERACIONES_CREDITO_PERSONA: readonly string[] = ['CREDITO', 'LANZAMIENTO_CREDITO'];
+
+const esLineaCreditoPersona = (baja: any): boolean =>
+    OPERACIONES_CREDITO_PERSONA.includes(String(baja.operacion));
+
+/**
  * Lado categoría y cuenta de cada baja.
  * - Categoría con cuenta: PAGO/RECIBIMIENTO contra la cuenta.
  * - Categoría sin cuenta: PAGO/RECIBIMIENTO contra la caja, en la moneda de la baja.
  * - Cuenta sin categoría: DEPOSITO/SAQUE, par cuenta + caja.
  * La naturaleza del formulario es la de la baja; en el contenedor va la opuesta.
  * Todos los asientos llevan caja_movimiento = caja en uso del movimiento.
+ * Recibe solo las líneas que generan asiento (los lanzamientos de crédito se excluyen antes).
  */
 const construirAsientos = (
     movimientoId: number,
@@ -282,37 +297,76 @@ type Disponible = {
 };
 
 /**
- * Conversiones en caja.
- * Una fila de bajas_caja en una moneda que ninguna baja usa se cubre con bajas en otras monedas:
- *  - Salida de caja en la moneda de la baja (por la parte de valor_contable que cubre).
- *  - Entrada a caja en la moneda real de la fila (por la parte proporcional de valor).
- * Las bajas se consumen en orden. Si una fila tiene monedas de baja en su misma moneda,
- * no genera conversión: esa parte ya entra a caja por la línea de la baja.
- * Todos los asientos llevan caja_movimiento = caja en uso del movimiento.
+ * Asientos de caja.
+ * 1) Cada línea de crédito de persona genera siempre su asiento en caja, con la naturaleza
+ *    OPUESTA a la línea. No depende de bajas_caja.
+ *    Línea CREDITO en Débito => caja Crédito (salida).
+ * 2) Las filas de bajas_caja solo generan asientos si su moneda no tiene ninguna línea de baja
+ *    (conversión de moneda).
  */
 const construirAsientosCaja = (
     movimientoId: number,
     formMovimiento: any,
     formBaja: any[],
     formBajaCaja: any[] | undefined,
+    lineasCredito: any[],
     usuarioId: number
 ): DatosAsiento[] => {
-    if (!Array.isArray(formBajaCaja) || formBajaCaja.length === 0) return [];
-
     const cajaMov = Number(formMovimiento.caja_id);
     const fecha = formMovimiento.fecha ?? null;
     const asientos: DatosAsiento[] = [];
 
-    const disponibles: Disponible[] = formBaja.map((baja) => {
-        const { valor, valorContable } = valoresBaja(baja);
-        return {
-            monedaId: Number(baja.moneda_id),
-            valorCent: aCentavos(valor),
-            contableCent: aCentavos(valorContable),
-            restanteCent: aCentavos(valorContable),
-        };
-    });
+    // 1) Créditos de persona: siempre compensan en caja
+    for (const credito of lineasCredito) {
+        const { valor, valorContable } = valoresBaja(credito);
+        if (!(valor > 0)) continue;
 
+        const operacion = String(credito.operacion);
+        if (!OPERACIONES_CREDITO_PERSONA.includes(operacion)) {
+            throw new ErrorValidacionAsiento(`Operación de crédito no reconocida: ${operacion}`);
+        }
+
+        const naturalezaBaja = credito.naturaleza_financiera;
+        if (naturalezaBaja !== 'Débito' && naturalezaBaja !== 'Crédito') {
+            throw new ErrorValidacionAsiento(
+                `La línea de crédito tiene naturaleza inválida: ${naturalezaBaja}`
+            );
+        }
+
+        const valorCaja = aDosDecimales(valor);
+        const contableCaja = aDosDecimales(valorContable);
+
+        asientos.push({
+            movimientoId,
+            cajaMovimiento: cajaMov,
+            cajaId: cajaMov,
+            tipoAsiento: operacion as TipoAsiento,
+            forma_pago: 'Efectivo',
+            monedaId: Number(credito.moneda_id),
+            naturaleza: opuesta(naturalezaBaja),
+            valor: valorCaja,
+            cambio: credito.cambio ?? null,
+            valorConvertido: valorConvertidoSi(valorCaja, contableCaja),
+            valorContable: contableCaja,
+            cuentaId: null,
+            subcategoriaId: null,
+            personaId: credito.persona_id != null ? Number(credito.persona_id) : null,
+            tituloId: null,
+            documentoId: null,
+            documento: null,
+            vencimiento: null,
+            historico: 'Lanzamiento de crédito cobrado en caja',
+            fechaContable: fecha,
+            usuarioId,
+        } as DatosAsiento);
+    }
+
+    if (!Array.isArray(formBajaCaja) || formBajaCaja.length === 0) return asientos;
+
+    // Monedas que ya tienen alguna línea de baja (incluidos los créditos)
+    const monedasConLinea = new Set(formBaja.map((b) => Number(b.moneda_id)));
+
+    // 2) Conversión: solo para filas de caja en monedas sin líneas de baja
     formBajaCaja.forEach((bc, index) => {
         const linea = index + 1;
         const naturaleza = bc.naturaleza_financiera;
@@ -328,10 +382,7 @@ const construirAsientosCaja = (
         if (valorCent === 0) return;
 
         const monedaCaja = Number(bc.moneda_id);
-        const cajaDestino = Number(bc.caja_id ?? cajaMov);
-
-        // Hay bajas en esta moneda: la fila ya está cubierta por sus líneas, sin conversión.
-        if (disponibles.some((d) => d.monedaId === monedaCaja)) return;
+        if (monedasConLinea.has(monedaCaja)) return;
 
         if (contableCent === 0) {
             throw new ErrorValidacionAsiento(
@@ -339,6 +390,17 @@ const construirAsientosCaja = (
             );
         }
 
+        const disponiblesConv: Disponible[] = formBaja.map((baja) => {
+            const { valor, valorContable } = valoresBaja(baja);
+            return {
+                monedaId: Number(baja.moneda_id),
+                valorCent: aCentavos(valor),
+                contableCent: aCentavos(valorContable),
+                restanteCent: aCentavos(valorContable),
+            };
+        });
+
+        const cajaDestino = Number(bc.caja_id ?? cajaMov);
         const tipo = naturaleza === 'Débito' ? 'DEPOSITO' : 'SAQUE';
         const base = {
             movimientoId,
@@ -360,7 +422,7 @@ const construirAsientosCaja = (
         let restanteBc = contableCent;
         let entradaAcumulada = 0;
 
-        for (const d of disponibles) {
+        for (const d of disponiblesConv) {
             if (restanteBc <= 0) break;
             if (d.restanteCent <= 0) continue;
 
@@ -382,7 +444,6 @@ const construirAsientosCaja = (
             asientos.push({
                 ...base,
                 cajaId: cajaMov,
-                forma_pago: 'Efectivo',
                 monedaId: d.monedaId,
                 naturaleza: opuesta(naturaleza),
                 valor: valorSalida,
@@ -395,7 +456,6 @@ const construirAsientosCaja = (
             asientos.push({
                 ...base,
                 cajaId: cajaDestino,
-                forma_pago: 'Efectivo',
                 monedaId: monedaCaja,
                 naturaleza,
                 valor: valorEntrada,
@@ -420,10 +480,49 @@ const construirAsientosCaja = (
 };
 
 /**
- * Control final: el neto de los asientos de caja por caja y moneda
- * debe ser igual al neto de las filas de bajas_caja.
+ * Control por moneda: cuenta todas las líneas de bajas según su naturaleza_financiera,
+ * sin importar la operación. Crédito suma y Débito resta.
+ * Las filas de bajas_caja van en sentido de caja: Débito suma y Crédito resta.
+ * Solo se validan las monedas que tienen líneas de bajas.
  */
-const validarCajaContraBajasCaja = (
+const validarCajaContraBajasCaja = (formBaja: any[], formBajaCaja: any[]) => {
+    const monedasConBajas = new Set(formBaja.map((b) => Number(b.moneda_id)));
+
+    const netoBajas = new Map<number, number>();
+    for (const baja of formBaja) {
+        const moneda = Number(baja.moneda_id);
+        const { valor } = valoresBaja(baja);
+        const signo = baja.naturaleza_financiera === 'Crédito' ? 1 : -1;
+        netoBajas.set(moneda, (netoBajas.get(moneda) ?? 0) + signo * aCentavos(valor));
+    }
+
+    const netoCaja = new Map<number, number>();
+    for (const bc of formBajaCaja) {
+        const moneda = Number(bc.moneda_id);
+        if (!monedasConBajas.has(moneda)) continue;
+        const valor = aCentavos(Math.abs(Number(bc.valor)));
+        if (valor === 0) continue;
+        const signo = bc.naturaleza_financiera === 'Débito' ? 1 : -1;
+        netoCaja.set(moneda, (netoCaja.get(moneda) ?? 0) + signo * valor);
+    }
+
+    for (const moneda of monedasConBajas) {
+        const bajas = netoBajas.get(moneda) ?? 0;
+        const caja = netoCaja.get(moneda) ?? 0;
+        if (bajas !== caja) {
+            throw new ErrorValidacionAsiento(
+                `La caja no cuadra en moneda ${moneda}: líneas de bajas ${bajas / 100} vs bajas de caja ${caja / 100}`
+            );
+        }
+    }
+};
+
+/**
+ * Control final: el neto de los asientos de caja por caja y moneda debe ser igual
+ * al neto de las filas de bajas_caja (Débito suma, Crédito resta).
+ * Detecta cualquier crédito que no haya generado asiento en caja.
+ */
+const validarAsientosContraBajasCaja = (
     asientos: DatosAsiento[],
     formBajaCaja: any[],
     cajaMov: number
@@ -485,6 +584,11 @@ export const guardarFinanciero = async (req: Request, res: Response) => {
     }
 
     console.log('>>> Validaciones iniciales OK. formBaja tiene', formBaja.length, 'líneas');
+
+    // Los lanzamientos de crédito de persona no generan asientos propios en caja por construirAsientos:
+    // su cobro en caja se genera en construirAsientosCaja.
+    const lineasLanzamiento = formBaja.filter(esLineaCreditoPersona);
+    const lineasAsiento = formBaja.filter((b) => !esLineaCreditoPersona(b));
 
     // id = 0, null, undefined o "" => nuevo (INSERT)
     // id > 0 => actualización (UPDATE)
@@ -563,6 +667,7 @@ export const guardarFinanciero = async (req: Request, res: Response) => {
             console.log('>>> Movimiento insertado, id:', movimientoId);
         }
 
+        // Todas las líneas (incluidos los lanzamientos) quedan en bajas para auditoría
         await insertarBajas(client, movimientoId, formBaja);
         console.log('>>> Bajas insertadas:', formBaja.length);
 
@@ -573,7 +678,7 @@ export const guardarFinanciero = async (req: Request, res: Response) => {
             console.log('>>> Bajas de caja insertadas:', formBajaCaja.length);
         }
 
-        // Asientos: en edición se cancelan los anteriores (no se borran) y se crean los nuevos
+        // Asientos y créditos: en edición se cancelan los anteriores (no se borran) y se crean los nuevos
         if (esActualizacion) {
             await cancelarAsientosDeMovimiento(
                 movimientoId,
@@ -581,22 +686,34 @@ export const guardarFinanciero = async (req: Request, res: Response) => {
                 'Edición del movimiento',
                 client
             );
-            console.log('>>> Asientos anteriores cancelados');
+            await cancelarCreditosDeMovimiento(client, movimientoId);
+            console.log('>>> Asientos y créditos anteriores cancelados');
         }
 
         const asientos = [
-            ...construirAsientos(movimientoId, formMovimiento, formBaja, usuarioSesionId),
-            ...construirAsientosCaja(movimientoId, formMovimiento, formBaja, formBajaCaja, usuarioSesionId),
+            ...construirAsientos(movimientoId, formMovimiento, lineasAsiento, usuarioSesionId),
+            ...construirAsientosCaja(
+                movimientoId,
+                formMovimiento,
+                formBaja,
+                formBajaCaja,
+                lineasLanzamiento,
+                usuarioSesionId
+            ),
         ];
 
         if (Array.isArray(formBajaCaja) && formBajaCaja.length > 0) {
-            validarCajaContraBajasCaja(asientos, formBajaCaja, Number(formMovimiento.caja_id));
+            validarCajaContraBajasCaja(formBaja, formBajaCaja);
+            validarAsientosContraBajasCaja(asientos, formBajaCaja, Number(formMovimiento.caja_id));
         }
 
         console.log('>>> asientos construidos:', JSON.stringify(asientos, null, 2));
 
         await insertarAsientos(asientos, client);
         console.log('>>> Asientos insertados:', asientos.length);
+
+        await insertarCreditosDeLanzamientos(client, movimientoId, lineasLanzamiento, usuarioSesionId);
+        console.log('>>> Lanzamientos de crédito insertados:', lineasLanzamiento.length);
 
         await client.query('COMMIT');
         console.log('>>> COMMIT ejecutado, movimiento', movimientoId);
@@ -629,7 +746,7 @@ export const guardarFinanciero = async (req: Request, res: Response) => {
 // ---------- CANCELAR ----------
 
 /**
- * Cancela un movimiento y todos sus asientos efectivados, en una sola transacción.
+ * Cancela un movimiento, sus asientos y sus créditos de persona, en una sola transacción.
  * El movimiento y sus bajas se conservan para auditoría.
  * Body: { motivo: string }
  */
@@ -676,8 +793,9 @@ export const cancelarFinanciero = async (req: Request, res: Response) => {
             [id, motivo]
         );
 
-        // Cancela todos los asientos efectivados del movimiento (no los borra)
+        // Cancela todos los asientos efectivados y los créditos de persona del movimiento (no los borra)
         await cancelarAsientosDeMovimiento(id, usuarioId, motivo, client);
+        await cancelarCreditosDeMovimiento(client, id);
 
         await client.query('COMMIT');
 

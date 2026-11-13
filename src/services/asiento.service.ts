@@ -2,7 +2,7 @@ import type { PoolClient } from 'pg';
 import { randomUUID } from 'node:crypto';
 import { pool } from '../db/db.js';
 
-export type TipoAsiento = 'PAGO' | 'RECIBIMIENTO' | 'SAQUE' | 'DEPOSITO' | 'TRANSFERENCIA' | 'AJUSTE';
+export type TipoAsiento = 'PAGO' | 'RECIBIMIENTO' | 'SAQUE' | 'DEPOSITO' | 'TRANSFERENCIA' | 'AJUSTE' | 'CREDITO';
 export type Naturaleza = 'Débito' | 'Crédito';
 export type FormaPago = 'Efectivo' | 'Lanzamiento Bancario' | 'Depósito Bancario' | 'Saque Bancario' | 'Cheque' | 'Tarjeta';
 
@@ -10,7 +10,10 @@ export type FormaPago = 'Efectivo' | 'Lanzamiento Bancario' | 'Depósito Bancari
 const FORMA_PAGO_CAJA: FormaPago = 'Efectivo';
 
 // Los asientos de cuenta deben llegar con una de estas formas de pago desde el front.
-const FORMAS_PAGO_CUENTA: readonly FormaPago[] = ['Lanzamiento Bancario', 'Cheque', 'Tarjeta',  'Depósito Bancario', 'Saque Bancario'];
+const FORMAS_PAGO_CUENTA: readonly FormaPago[] = ['Lanzamiento Bancario', 'Cheque', 'Tarjeta', 'Depósito Bancario', 'Saque Bancario'];
+
+// Tipos que exigen subcategoría. CREDITO nunca la lleva.
+const TIPOS_CON_SUBCATEGORIA: readonly TipoAsiento[] = ['PAGO', 'RECIBIMIENTO'];
 
 export type DatosAsiento = {
     movimientoId?: number | null;
@@ -66,9 +69,20 @@ function validarAsiento(d: DatosAsiento): void {
 
     resolverFormaPago(d);
 
-    const requiereSubcategoria = d.tipoAsiento === 'PAGO' || d.tipoAsiento === 'RECIBIMIENTO';
-    if (requiereSubcategoria !== (d.subcategoriaId != null)) {
-        throw new ErrorValidacionAsiento('Solo PAGO y RECIBIMIENTO llevan subcategoría');
+    // Subcategoría: obligatoria en PAGO y RECIBIMIENTO, prohibida en el resto.
+    const requiereSubcategoria = TIPOS_CON_SUBCATEGORIA.includes(d.tipoAsiento);
+    const tieneSubcategoria = d.subcategoriaId != null;
+
+    if (requiereSubcategoria && !tieneSubcategoria) {
+        throw new ErrorValidacionAsiento(`El asiento de tipo ${d.tipoAsiento} requiere subcategoría`);
+    }
+    if (!requiereSubcategoria && tieneSubcategoria) {
+        throw new ErrorValidacionAsiento(`El asiento de tipo ${d.tipoAsiento} no debe llevar subcategoría`);
+    }
+
+    // CREDITO no lleva cuenta ni subcategoría.
+    if (d.tipoAsiento === 'CREDITO' && (d.cuentaId != null || tieneSubcategoria)) {
+        throw new ErrorValidacionAsiento('Un asiento CREDITO no lleva cuenta ni subcategoría');
     }
 
     if (!(d.valor > 0)) {

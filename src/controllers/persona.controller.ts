@@ -9,6 +9,18 @@ const esValidoTipoPersona = (tipo: string): tipo is 'Física' | 'Jurídica' => {
 };
 
 // ============================================================================
+// HELPER: Límite de crédito
+// Devuelve null si viene vacío, el número si es válido y undefined si es inválido.
+// ============================================================================
+const aLimiteCredito = (valor: unknown): number | null | undefined => {
+    if (valor === undefined) return undefined;
+    if (valor === null || valor === '') return null;
+    const n = Number(valor);
+    if (!Number.isFinite(n) || n < 0) return undefined;
+    return n;
+};
+
+// ============================================================================
 // LISTAR TODAS LAS PERSONAS
 // ============================================================================
 export const ListarPersonas = async (req: Request, res: Response) => {
@@ -29,6 +41,8 @@ export const ListarPersonas = async (req: Request, res: Response) => {
                 pais,
                 categoria,
                 activo,
+                observacion,
+                limite_credito,
                 creado_en,
                 actualizado_en
             FROM persona
@@ -77,6 +91,8 @@ export const ObtenerPersonaId = async (req: Request, res: Response) => {
                 pais,
                 categoria,
                 activo,
+                observacion,
+                limite_credito,
                 creado_en,
                 actualizado_en
             FROM persona
@@ -120,7 +136,9 @@ export const CrearPersona = async (req: Request, res: Response) => {
         departamento,
         pais = 'Paraguay',
         categoria,
-        activo = true
+        activo = true,
+        observacion,
+        limite_credito,
     } = req.body;
 
     // Validaciones básicas
@@ -157,6 +175,13 @@ export const CrearPersona = async (req: Request, res: Response) => {
         });
     }
 
+    const limite = aLimiteCredito(limite_credito);
+    if (limite === undefined) {
+        return res.status(400).json({
+            mensaje: "El límite de crédito debe ser un número mayor o igual a cero"
+        });
+    }
+
     try {
         const consultaSQL = `
             INSERT INTO persona (
@@ -172,8 +197,10 @@ export const CrearPersona = async (req: Request, res: Response) => {
                 departamento,
                 pais,
                 categoria,
-                activo
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+                activo,
+                observacion,
+                limite_credito
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
             RETURNING *
         `;
 
@@ -190,7 +217,9 @@ export const CrearPersona = async (req: Request, res: Response) => {
             departamento?.trim() || null,
             pais?.trim() || 'Paraguay',
             categoria?.trim() || null,
-            activo
+            activo,
+            observacion?.trim() || null,
+            limite,
         ]);
 
         res.status(201).json({
@@ -235,6 +264,7 @@ export const ActualizarPersona = async (req: Request, res: Response) => {
         categoria,
         activo,
         observacion,
+        limite_credito,
     } = req.body;
 
     if (!id) {
@@ -253,6 +283,14 @@ export const ActualizarPersona = async (req: Request, res: Response) => {
     if (tipo_persona !== undefined && !esValidoTipoPersona(tipo_persona)) {
         return res.status(400).json({
             mensaje: "El tipo_persona debe ser 'Física' o 'Jurídica'"
+        });
+    }
+
+    // undefined = no se envió; null = se borra el límite; número = nuevo límite
+    const limite = aLimiteCredito(limite_credito);
+    if (limite_credito !== undefined && limite === undefined) {
+        return res.status(400).json({
+            mensaje: "El límite de crédito debe ser un número mayor o igual a cero"
         });
     }
 
@@ -287,6 +325,8 @@ export const ActualizarPersona = async (req: Request, res: Response) => {
             }
         }
 
+        // Los campos con CASE permiten guardar null (borrar valor),
+        // que COALESCE no permite.
         const consultaSQL = `
             UPDATE persona SET
                 tipo_persona = COALESCE($1, tipo_persona),
@@ -302,8 +342,10 @@ export const ActualizarPersona = async (req: Request, res: Response) => {
                 pais = COALESCE($11, pais),
                 categoria = COALESCE($12, categoria),
                 activo = COALESCE($13, activo),
+                observacion = CASE WHEN $14::boolean THEN $15::varchar ELSE observacion END,
+                limite_credito = CASE WHEN $16::boolean THEN $17::numeric ELSE limite_credito END,
                 actualizado_en = NOW()
-            WHERE id = $14
+            WHERE id = $18
             RETURNING *
         `;
 
@@ -321,6 +363,10 @@ export const ActualizarPersona = async (req: Request, res: Response) => {
             pais?.trim() || null,
             categoria?.trim() || null,
             activo !== undefined ? activo : null,
+            observacion !== undefined,
+            observacion !== undefined ? (observacion?.trim() || null) : null,
+            limite_credito !== undefined,
+            limite_credito !== undefined ? limite : null,
             id
         ]);
 
@@ -495,39 +541,6 @@ export const BuscarPersonas = async (req: Request, res: Response) => {
 };
 
 // ============================================================================
-// OBTENER PERSONAS POR TIPO
-// ============================================================================
-/* export const PersonasPorTipo = async (req: Request, res: Response) => {
-    const { tipo_persona } = req.params;
-
-    if (!tipo_persona || !esValidoTipoPersona(tipo_persona)) {
-        return res.status(400).json({
-            mensaje: "Tipo de persona inválido. Debe ser 'Física' o 'Jurídica'"
-        });
-    }
-
-    try {
-        const consultaSQL = `
-            SELECT *
-            FROM persona
-            WHERE tipo_persona = $1
-            AND activo = true
-            ORDER BY nombre ASC
-        `;
-
-        const result = await query(consultaSQL, [tipo_persona]);
-        res.status(200).json(result.rows);
-
-    } catch (error) {
-        console.error("Error al obtener personas por tipo:", error);
-        res.status(500).json({
-            mensaje: "Error al obtener personas por tipo",
-            error: error instanceof Error ? error.message : 'Error desconocido'
-        });
-    }
-}; */
-
-// ============================================================================
 // OBTENER PERSONAS POR CATEGORÍA
 // ============================================================================
 export const PersonasPorCategoria = async (req: Request, res: Response) => {
@@ -639,10 +652,11 @@ export const VerificarDisponibilidad = async (req: Request, res: Response) => {
     }
 
     try {
+        // tipo se valida contra la lista blanca anterior, no viene libre del request
         const consultaSQL = `
             SELECT id
             FROM persona
-            WHERE ${tipo} = $1
+            WHERE ${tipo === 'cedula' ? 'cedula' : 'ruc'} = $1
         `;
 
         const result = await query(consultaSQL, [valor]);
