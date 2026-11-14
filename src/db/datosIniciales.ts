@@ -366,6 +366,22 @@ CREATE TABLE IF NOT EXISTS public.documentos (
 );`,
   },
   {
+    nombre: 'sucursal',
+    sql: `
+CREATE TABLE IF NOT EXISTS public.sucursal (
+	id serial4 NOT NULL,
+	nombre varchar(100) NOT NULL,
+	codigo varchar(20) NULL,
+	direccion varchar(255) NULL,
+	telefono varchar(50) NULL,
+	activo bool DEFAULT true NOT NULL,
+	creado_en timestamp DEFAULT now() NOT NULL,
+	actualizado_en timestamp NULL,
+	CONSTRAINT sucursal_codigo_key UNIQUE (codigo),
+	CONSTRAINT sucursal_pkey PRIMARY KEY (id)
+);`,
+  },
+  {
     nombre: 'operaciones_baja',
     sql: `
 CREATE TABLE IF NOT EXISTS public.operaciones_baja (
