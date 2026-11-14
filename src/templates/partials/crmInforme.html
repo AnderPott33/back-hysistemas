@@ -8,17 +8,16 @@
     @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
 
     :root {
-      --primary-dark: {{#if color_principal}}{{color_principal}}{{else}}#0f172a{{/if}};
-      --accent:       #3b82f6;
-      --text-main:    #0f172a;
-      --text-muted:   #64748b;
-      --text-light:   #94a3b8;
-      --text-slate:   #e2e8f0;
-      --bg-soft:      #f8fafc;
-      --bg-mid:       #f1f5f9;
-      --border:       rgba(15, 23, 42, 0.1);
-      --red:          #dc2626;
-      --green:        #16a34a;
+      --brand:        {{#if color_principal}}{{color_principal}}{{else}}#1e3a5f{{/if}};
+      --ink:          #1f2937;
+      --ink-soft:     #4b5563;
+      --muted:        #6b7280;
+      --line:         #e5e7eb;
+      --line-strong:  #9ca3af;
+      --paper-soft:   #f9fafb;
+      --paper-mid:    #f3f4f6;
+      --green:        #15803d;
+      --red:          #b91c1c;
     }
 
     @page { size: A4; margin: 0; }
@@ -28,47 +27,45 @@
     html, body {
       width: 210mm;
       font-family: 'DM Sans', 'Segoe UI', Helvetica, Arial, sans-serif;
-      font-size: 10pt;
-      color: var(--text-main);
+      font-size: 9.5pt;
+      color: var(--ink);
       background: #fff;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
     }
 
     /* ─── CONTENEDOR PRINCIPAL (thead se repite en cada página) ─── */
     .report-table {
       width: 100%;
       border-collapse: collapse;
-      border: 0.5px solid var(--border);
     }
 
     .report-table > thead { display: table-header-group; }
     .report-table > tfoot { display: table-footer-group; }
     .report-table > tbody > tr > td { padding: 0; vertical-align: top; }
 
-    /* Evita que una fila del encabezado se parta */
     .report-table tr { page-break-inside: avoid; break-inside: avoid; }
 
-    /* ─── HEADER (se repite en cada página) ─── */
+    /* ─── ENCABEZADO (se repite en cada página) ─── */
     .r-header {
-      background: var(--primary-dark);
-      padding: 20px 28px 18px;
+      padding: 18px 28px 14px;
+      border-bottom: 2px solid var(--brand);
       display: flex;
       justify-content: space-between;
-      align-items: flex-start;
-      -webkit-print-color-adjust: exact;
-      print-color-adjust: exact;
+      align-items: flex-end;
     }
 
     .r-logo-title {
       font-family: 'DM Serif Display', Georgia, serif;
-      font-size: 20pt;
-      color: #f8fafc;
-      letter-spacing: -0.3px;
-      margin-bottom: 4px;
+      font-size: 19pt;
+      color: var(--brand);
+      letter-spacing: -0.2px;
+      margin-bottom: 3px;
     }
 
     .r-logo-sub {
       font-size: 7.5pt;
-      color: var(--text-light);
+      color: var(--muted);
       letter-spacing: 0.8px;
       text-transform: uppercase;
     }
@@ -76,46 +73,46 @@
     .r-badge { text-align: right; }
 
     .r-badge-label {
-      font-size: 7pt;
-      letter-spacing: 1.5px;
+      font-size: 6.5pt;
+      letter-spacing: 1.2px;
       text-transform: uppercase;
-      color: var(--text-light);
-      margin-bottom: 4px;
+      color: var(--muted);
+      margin-bottom: 3px;
     }
 
     .r-badge-period {
       font-family: 'DM Mono', 'Courier New', monospace;
-      font-size: 10pt;
-      color: var(--text-slate);
-      letter-spacing: 1px;
+      font-size: 9.5pt;
+      color: var(--ink);
+      letter-spacing: 0.5px;
     }
 
     /* ─── META (solo primera página) ─── */
     .r-meta {
-      padding: 16px 28px;
+      padding: 14px 28px;
       display: grid;
       grid-template-columns: 1fr 1fr;
-      border-bottom: 0.5px solid var(--border);
+      border-bottom: 0.5px solid var(--line);
     }
 
-    .r-meta-left { border-right: 0.5px solid var(--border); padding-right: 20px; }
+    .r-meta-left { border-right: 0.5px solid var(--line); padding-right: 20px; }
     .r-meta-right { padding-left: 20px; }
 
-    .r-field { margin-bottom: 12px; }
+    .r-field { margin-bottom: 10px; }
     .r-field:last-child { margin-bottom: 0; }
 
     .r-field-label {
-      font-size: 7pt;
+      font-size: 6.5pt;
       text-transform: uppercase;
       letter-spacing: 0.8px;
-      color: var(--text-muted);
+      color: var(--muted);
       margin-bottom: 2px;
     }
 
     .r-field-value {
       font-size: 9.5pt;
       font-weight: 500;
-      color: var(--text-main);
+      color: var(--ink);
     }
 
     /* ─── RESUMEN GENERAL (solo primera página) ─── */
@@ -124,23 +121,29 @@
       grid-template-columns: repeat(4, 1fr);
       gap: 12px;
       padding: 14px 28px;
-      background: var(--bg-soft);
-      border-bottom: 0.5px solid var(--border);
+      background: var(--paper-soft);
+      border-bottom: 0.5px solid var(--line);
       page-break-inside: avoid;
       break-inside: avoid;
     }
 
+    .r-summary-item {
+      border-left: 2px solid var(--line-strong);
+      padding-left: 10px;
+    }
+
     .r-summary-item .lbl {
-      font-size: 7pt;
+      font-size: 6.5pt;
       text-transform: uppercase;
       letter-spacing: 0.8px;
-      color: var(--text-muted);
+      color: var(--muted);
     }
 
     .r-summary-item .val {
       font-family: 'DM Mono', 'Courier New', monospace;
       font-size: 10pt;
       font-weight: 500;
+      color: var(--ink);
       margin-top: 3px;
     }
 
@@ -148,23 +151,30 @@
     .r-summary-item .val-neg { color: var(--red); }
 
     /* ─── SECCIÓN DE CATEGORÍA ─── */
-    .r-section { page-break-inside: auto; }
+    .r-section {
+      page-break-inside: auto;
+      margin-top: 14px;
+    }
 
     .r-section-title {
-      padding: 8px 28px;
-      font-size: 7pt;
-      letter-spacing: 1.5px;
+      padding: 7px 28px;
+      font-size: 7.5pt;
+      font-weight: 600;
+      letter-spacing: 1.2px;
       text-transform: uppercase;
-      color: var(--text-muted);
-      border-bottom: 0.5px solid var(--border);
-      background: var(--bg-soft);
+      color: var(--brand);
+      border-top: 1px solid var(--brand);
+      border-bottom: 0.5px solid var(--line-strong);
       display: flex;
       justify-content: space-between;
       page-break-after: avoid;
       break-after: avoid;
     }
 
-    .r-section-title .tipo { color: var(--accent); }
+    .r-section-title .tipo {
+      color: var(--muted);
+      font-weight: 500;
+    }
 
     /* ─── TABLAS DE DATOS ─── */
     .data-table {
@@ -176,26 +186,24 @@
     .data-table thead { display: table-header-group; }
     .data-table tr { page-break-inside: avoid; break-inside: avoid; }
 
-    .data-table thead tr { background: var(--bg-mid); }
-
     .data-table th {
-      font-size: 7pt;
-      letter-spacing: 0.8px;
+      font-size: 6.8pt;
+      letter-spacing: 0.7px;
       text-transform: uppercase;
-      color: var(--text-muted);
-      font-weight: 500;
-      padding: 7px 28px;
+      color: var(--ink-soft);
+      font-weight: 600;
+      padding: 6px 28px;
       text-align: left;
-      border-bottom: 0.5px solid var(--border);
+      border-bottom: 1px solid var(--line-strong);
     }
 
     .data-table th.col-right, .data-table td.col-right { text-align: right; }
     .data-table th.col-center, .data-table td.col-center { text-align: center; }
 
     .data-table td {
-      padding: 8px 28px;
-      border-bottom: 0.5px solid var(--border);
-      color: var(--text-main);
+      padding: 7px 28px;
+      border-bottom: 0.5px solid var(--line);
+      color: var(--ink);
       vertical-align: middle;
     }
 
@@ -204,65 +212,68 @@
       font-size: 8pt;
     }
 
+    .data-table td.col-center {
+      font-size: 7.5pt;
+      color: var(--muted);
+    }
+
     .data-table tr.subtotal td {
-      background: var(--bg-soft);
+      background: var(--paper-mid);
       font-weight: 600;
-      border-top: 0.5px solid var(--border);
+      border-top: 1px solid var(--line-strong);
+      border-bottom: 0.5px solid var(--line-strong);
     }
 
     .data-table tbody tr:last-child td { border-bottom: none; }
 
     .desc-main { font-weight: 500; }
 
-    .data-table td.val-pos,
-    .r-summary-item .val-pos { color: var(--green); }
+    .data-table td.val-pos { color: var(--green); }
+    .data-table td.val-neg { color: var(--red); }
 
-    .data-table td.val-neg,
-    .r-summary-item .val-neg { color: var(--red); }
-
-    .sub-indent { padding-left: 44px !important; }
+    .sub-indent { padding-left: 44px !important; color: var(--ink-soft); }
 
     /* ─── TOTAL FINAL ─── */
     .r-total-final {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 14px 28px;
-      background: var(--primary-dark);
-      -webkit-print-color-adjust: exact;
-      print-color-adjust: exact;
+      margin-top: 18px;
+      padding: 12px 28px;
+      background: var(--paper-soft);
+      border-top: 2px solid var(--brand);
+      border-bottom: 0.5px solid var(--line-strong);
       page-break-inside: avoid;
       break-inside: avoid;
     }
 
     .r-total-final .lbl {
-      font-size: 8pt;
+      font-size: 7.5pt;
       letter-spacing: 0.8px;
       text-transform: uppercase;
-      color: var(--text-light);
+      color: var(--ink-soft);
+      font-weight: 600;
     }
 
     .r-total-final .val {
       font-family: 'DM Mono', 'Courier New', monospace;
-      font-size: 13pt;
+      font-size: 12pt;
       font-weight: 500;
-      color: #f8fafc;
-      letter-spacing: 1px;
+      color: var(--brand);
+      letter-spacing: 0.5px;
     }
 
     /* ─── FOOTER ─── */
     .r-footer {
       padding: 10px 28px;
-      background: var(--bg-mid);
-      border-top: 0.5px solid var(--border);
+      border-top: 0.5px solid var(--line-strong);
       display: flex;
       justify-content: space-between;
       align-items: center;
-      -webkit-print-color-adjust: exact;
-      print-color-adjust: exact;
+      margin-top: 14px;
     }
 
-    .r-footer p { font-size: 7pt; color: var(--text-muted); }
+    .r-footer p { font-size: 6.8pt; color: var(--muted); }
   </style>
 </head>
 <body>
@@ -300,11 +311,11 @@
           <div class="r-meta-left">
             <div class="r-field">
               <div class="r-field-label">Caja</div>
-              <div class="r-field-value">{{caja_nombre}}</div>
+              <div class="r-field-value">{{caja_id}}{{caja_nombre}}</div>
             </div>
             <div class="r-field">
               <div class="r-field-label">Cuenta</div>
-              <div class="r-field-value">{{cuenta_nombre}}</div>
+              <div class="r-field-value">{{cuenta_id}}{{cuenta_nombre}}</div>
             </div>
             <div class="r-field">
               <div class="r-field-label">Moneda</div>
@@ -374,7 +385,7 @@
                   <td class="{{#if @first}}desc-main{{else}}sub-indent{{/if}}">
                     {{#if @first}}{{../subcategoria_nombre}}{{/if}}
                   </td>
-                  <td class="col-center" style="font-size:7.5pt">{{moneda_codigo}}</td>
+                  <td class="col-center">{{moneda_codigo}}</td>
                   <td class="col-right">{{saldo_anterior_f}}</td>
                   <td class="col-right val-pos">{{total_entrada_f}}</td>
                   <td class="col-right val-neg">{{total_salida_f}}</td>
@@ -385,7 +396,7 @@
               {{#each totales_por_moneda}}
                 <tr class="subtotal">
                   <td>Total {{../categoria_nombre}}</td>
-                  <td class="col-center" style="font-size:7.5pt">{{moneda_codigo}}</td>
+                  <td class="col-center">{{moneda_codigo}}</td>
                   <td class="col-right">{{saldo_anterior_f}}</td>
                   <td class="col-right val-pos">{{total_entrada_f}}</td>
                   <td class="col-right val-neg">{{total_salida_f}}</td>

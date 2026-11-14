@@ -3,22 +3,21 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Saldos por Categoría — {{empresa_nombre}}</title>
+  <title>Saldos por Subcategoría — {{empresa_nombre}}</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
 
     :root {
-      --primary-dark: {{#if color_principal}}{{color_principal}}{{else}}#0f172a{{/if}};
-      --accent:       #3b82f6;
-      --text-main:    #0f172a;
-      --text-muted:   #64748b;
-      --text-light:   #94a3b8;
-      --text-slate:   #e2e8f0;
-      --bg-soft:      #f8fafc;
-      --bg-mid:       #f1f5f9;
-      --border:       rgba(15, 23, 42, 0.1);
-      --red:          #dc2626;
-      --green:        #16a34a;
+      --brand:        {{#if color_principal}}{{color_principal}}{{else}}#1e3a5f{{/if}};
+      --ink:          #1f2937;
+      --ink-soft:     #4b5563;
+      --muted:        #6b7280;
+      --line:         #e5e7eb;
+      --line-strong:  #9ca3af;
+      --paper-soft:   #f9fafb;
+      --paper-mid:    #f3f4f6;
+      --green:        #15803d;
+      --red:          #b91c1c;
     }
 
     @page { size: A4; margin: 0; }
@@ -27,41 +26,46 @@
 
     html, body {
       width: 210mm;
-      min-height: 297mm;
       font-family: 'DM Sans', 'Segoe UI', Helvetica, Arial, sans-serif;
-      font-size: 10pt;
-      color: var(--text-main);
+      font-size: 9.5pt;
+      color: var(--ink);
       background: #fff;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
     }
 
-    .report {
+    /* ─── CONTENEDOR PRINCIPAL (thead se repite en cada página) ─── */
+    .report-table {
       width: 100%;
-      min-height: 297mm;
-      display: flex;
-      flex-direction: column;
-      border: 0.5px solid var(--border);
+      border-collapse: collapse;
     }
 
+    .report-table > thead { display: table-header-group; }
+    .report-table > tfoot { display: table-footer-group; }
+    .report-table > tbody > tr > td { padding: 0; vertical-align: top; }
+
+    .report-table tr { page-break-inside: avoid; break-inside: avoid; }
+
+    /* ─── ENCABEZADO (se repite en cada página) ─── */
     .r-header {
-      background: var(--primary-dark);
-      padding: 20px 28px 18px;
+      padding: 18px 28px 14px;
+      border-bottom: 2px solid var(--brand);
       display: flex;
       justify-content: space-between;
-      align-items: flex-start;
-      flex-shrink: 0;
+      align-items: flex-end;
     }
 
     .r-logo-title {
       font-family: 'DM Serif Display', Georgia, serif;
-      font-size: 20pt;
-      color: #f8fafc;
-      letter-spacing: -0.3px;
-      margin-bottom: 4px;
+      font-size: 19pt;
+      color: var(--brand);
+      letter-spacing: -0.2px;
+      margin-bottom: 3px;
     }
 
     .r-logo-sub {
       font-size: 7.5pt;
-      color: var(--text-light);
+      color: var(--muted);
       letter-spacing: 0.8px;
       text-transform: uppercase;
     }
@@ -69,290 +73,358 @@
     .r-badge { text-align: right; }
 
     .r-badge-label {
-      font-size: 7pt;
-      letter-spacing: 1.5px;
+      font-size: 6.5pt;
+      letter-spacing: 1.2px;
       text-transform: uppercase;
-      color: var(--text-muted);
-      margin-bottom: 4px;
+      color: var(--muted);
+      margin-bottom: 3px;
     }
 
     .r-badge-period {
       font-family: 'DM Mono', 'Courier New', monospace;
-      font-size: 10pt;
-      color: var(--text-slate);
-      letter-spacing: 1px;
+      font-size: 9.5pt;
+      color: var(--ink);
+      letter-spacing: 0.5px;
     }
 
+    /* ─── META (solo primera página) ─── */
     .r-meta {
-      padding: 16px 28px;
+      padding: 14px 28px;
       display: grid;
       grid-template-columns: 1fr 1fr;
-      border-bottom: 0.5px solid var(--border);
-      flex-shrink: 0;
+      border-bottom: 0.5px solid var(--line);
     }
 
-    .r-meta-left { border-right: 0.5px solid var(--border); padding-right: 20px; }
+    .r-meta-left { border-right: 0.5px solid var(--line); padding-right: 20px; }
     .r-meta-right { padding-left: 20px; }
 
-    .r-field { margin-bottom: 12px; }
+    .r-field { margin-bottom: 10px; }
     .r-field:last-child { margin-bottom: 0; }
 
     .r-field-label {
-      font-size: 7pt;
+      font-size: 6.5pt;
       text-transform: uppercase;
       letter-spacing: 0.8px;
-      color: var(--text-muted);
+      color: var(--muted);
       margin-bottom: 2px;
     }
 
     .r-field-value {
       font-size: 9.5pt;
       font-weight: 500;
-      color: var(--text-main);
+      color: var(--ink);
     }
 
+    /* ─── RESUMEN GENERAL (solo primera página) ─── */
     .r-summary {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
       gap: 12px;
       padding: 14px 28px;
-      background: var(--bg-soft);
-      border-bottom: 0.5px solid var(--border);
-      flex-shrink: 0;
+      background: var(--paper-soft);
+      border-bottom: 0.5px solid var(--line);
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+
+    .r-summary-item {
+      border-left: 2px solid var(--line-strong);
+      padding-left: 10px;
     }
 
     .r-summary-item .lbl {
-      font-size: 7pt;
+      font-size: 6.5pt;
       text-transform: uppercase;
       letter-spacing: 0.8px;
-      color: var(--text-muted);
+      color: var(--muted);
     }
 
     .r-summary-item .val {
       font-family: 'DM Mono', 'Courier New', monospace;
       font-size: 10pt;
       font-weight: 500;
+      color: var(--ink);
       margin-top: 3px;
     }
 
-    .r-section-title {
-      padding: 8px 28px;
-      font-size: 7pt;
-      letter-spacing: 1.5px;
-      text-transform: uppercase;
-      color: var(--text-muted);
-      border-bottom: 0.5px solid var(--border);
-      background: var(--bg-soft);
-      flex-shrink: 0;
+    .r-summary-item .val-pos { color: var(--green); }
+    .r-summary-item .val-neg { color: var(--red); }
+
+    /* ─── SECCIÓN DE CATEGORÍA ─── */
+    .r-section {
+      page-break-inside: auto;
+      margin-top: 14px;
     }
 
-    table {
+    .r-section-title {
+      padding: 7px 28px;
+      font-size: 7.5pt;
+      font-weight: 600;
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+      color: var(--brand);
+      border-top: 1px solid var(--brand);
+      border-bottom: 0.5px solid var(--line-strong);
+      display: flex;
+      justify-content: space-between;
+      page-break-after: avoid;
+      break-after: avoid;
+    }
+
+    .r-section-title .tipo {
+      color: var(--muted);
+      font-weight: 500;
+    }
+
+    /* ─── TABLAS DE DATOS ─── */
+    .data-table {
       width: 100%;
       border-collapse: collapse;
       font-size: 8.5pt;
     }
 
-    table thead tr { background: var(--bg-mid); }
+    .data-table thead { display: table-header-group; }
+    .data-table tr { page-break-inside: avoid; break-inside: avoid; }
 
-    table th {
-      font-size: 7pt;
-      letter-spacing: 0.8px;
+    .data-table th {
+      font-size: 6.8pt;
+      letter-spacing: 0.7px;
       text-transform: uppercase;
-      color: var(--text-muted);
-      font-weight: 500;
-      padding: 7px 28px;
+      color: var(--ink-soft);
+      font-weight: 600;
+      padding: 6px 28px;
       text-align: left;
-      border-bottom: 0.5px solid var(--border);
+      border-bottom: 1px solid var(--line-strong);
     }
 
-    table th.col-right, table td.col-right { text-align: right; }
-    table th.col-center, table td.col-center { text-align: center; }
+    .data-table th.col-right, .data-table td.col-right { text-align: right; }
+    .data-table th.col-center, .data-table td.col-center { text-align: center; }
 
-    table td {
-      padding: 8px 28px;
-      border-bottom: 0.5px solid var(--border);
-      color: var(--text-main);
+    .data-table td {
+      padding: 7px 28px;
+      border-bottom: 0.5px solid var(--line);
+      color: var(--ink);
       vertical-align: middle;
     }
 
-    table td.col-right {
+    .data-table td.col-right {
       font-family: 'DM Mono', 'Courier New', monospace;
       font-size: 8pt;
     }
 
-    table tr.subtotal td {
-      background: var(--bg-soft);
-      font-weight: 600;
-      border-top: 0.5px solid var(--border);
+    .data-table td.col-center {
+      font-size: 7.5pt;
+      color: var(--muted);
     }
 
-    table tbody tr:last-child td { border-bottom: none; }
+    .data-table tr.subtotal td {
+      background: var(--paper-mid);
+      font-weight: 600;
+      border-top: 1px solid var(--line-strong);
+      border-bottom: 0.5px solid var(--line-strong);
+    }
+
+    .data-table tbody tr:last-child td { border-bottom: none; }
 
     .desc-main { font-weight: 500; }
-    .val-neg { color: var(--red); }
-    .val-pos { color: var(--green); }
 
+    .data-table td.val-pos { color: var(--green); }
+    .data-table td.val-neg { color: var(--red); }
+
+    .sub-indent { padding-left: 44px !important; color: var(--ink-soft); }
+
+    /* ─── TOTAL FINAL ─── */
     .r-total-final {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 14px 28px;
-      background: var(--primary-dark);
-      flex-shrink: 0;
+      margin-top: 18px;
+      padding: 12px 28px;
+      background: var(--paper-soft);
+      border-top: 2px solid var(--brand);
+      border-bottom: 0.5px solid var(--line-strong);
+      page-break-inside: avoid;
+      break-inside: avoid;
     }
 
     .r-total-final .lbl {
-      font-size: 8pt;
+      font-size: 7.5pt;
       letter-spacing: 0.8px;
       text-transform: uppercase;
-      color: var(--text-muted);
+      color: var(--ink-soft);
+      font-weight: 600;
     }
 
     .r-total-final .val {
       font-family: 'DM Mono', 'Courier New', monospace;
-      font-size: 13pt;
+      font-size: 12pt;
       font-weight: 500;
-      color: #f8fafc;
-      letter-spacing: 1px;
+      color: var(--brand);
+      letter-spacing: 0.5px;
     }
 
+    /* ─── FOOTER ─── */
     .r-footer {
-      margin-top: auto;
       padding: 10px 28px;
-      background: var(--bg-mid);
-      border-top: 0.5px solid var(--border);
+      border-top: 0.5px solid var(--line-strong);
       display: flex;
       justify-content: space-between;
       align-items: center;
-      flex-shrink: 0;
+      margin-top: 14px;
     }
 
-    .r-footer p {
-      font-size: 7pt;
-      color: var(--text-muted);
-    }
+    .r-footer p { font-size: 6.8pt; color: var(--muted); }
   </style>
 </head>
 <body>
 
-<div class="report">
+<table class="report-table">
 
-  <div class="r-header">
-    <div class="r-logo-area">
-      {{#if logo_empresa}}
-        <img src="{{logo_empresa}}" style="height: 9mm; margin-bottom: 6px; display: block;">
-      {{/if}}
-      <div class="r-logo-title">{{empresa_nombre}}</div>
-      <div class="r-logo-sub">{{titulo_documento}}</div>
-    </div>
-    <div class="r-badge">
-      <div class="r-badge-label">Periodo</div>
-      <div class="r-badge-period">{{periodo_inicio_f}} — {{periodo_fin_f}}</div>
-    </div>
-  </div>
+  <!-- ═══ ENCABEZADO: se repite automáticamente en cada página ═══ -->
+  <thead>
+    <tr>
+      <td>
+        <div class="r-header">
+          <div class="r-logo-area">
+            {{#if logo_empresa}}
+              <img src="{{logo_empresa}}" style="height: 9mm; margin-bottom: 6px; display: block;">
+            {{/if}}
+            <div class="r-logo-title">{{empresa_nombre}}</div>
+            <div class="r-logo-sub">{{titulo_documento}}</div>
+          </div>
+          <div class="r-badge">
+            <div class="r-badge-label">Periodo</div>
+            <div class="r-badge-period">{{periodo_inicio_f}} — {{periodo_fin_f}}</div>
+          </div>
+        </div>
+      </td>
+    </tr>
+  </thead>
 
-  <div class="r-meta">
-    <div class="r-meta-left">
-      <div class="r-field">
-        <div class="r-field-label">Caja</div>
-        <div class="r-field-value">{{caja_nombre}}</div>
-      </div>
-      <div class="r-field">
-        <div class="r-field-label">Cuenta</div>
-        <div class="r-field-value">{{cuenta_nombre}}</div>
-      </div>
-      <div class="r-field">
-        <div class="r-field-label">Moneda</div>
-        <div class="r-field-value">{{moneda_filtro}}</div>
-      </div>
-    </div>
-    <div class="r-meta-right">
-      <div class="r-field">
-        <div class="r-field-label">Tipo</div>
-        <div class="r-field-value">{{tipo_filtro}}</div>
-      </div>
-      <div class="r-field">
-        <div class="r-field-label">Saldo anterior incluido</div>
-        <div class="r-field-value">{{#if consolidado}}Sí{{else}}No{{/if}}</div>
-      </div>
-      <div class="r-field">
-        <div class="r-field-label">Generado por</div>
-        <div class="r-field-value">{{usuario}} · {{fecha_generacion_f}}</div>
-      </div>
-    </div>
-  </div>
+  <!-- ═══ CUERPO ═══ -->
+  <tbody>
+    <tr>
+      <td>
 
-  <div class="r-summary">
-    {{#each totales_generales}}
-    <div class="r-summary-item">
-      <div class="lbl">Entradas · {{moneda_codigo}}</div>
-      <div class="val val-pos">{{total_entrada_f}}</div>
-    </div>
-    <div class="r-summary-item">
-      <div class="lbl">Salidas · {{moneda_codigo}}</div>
-      <div class="val val-neg">{{total_salida_f}}</div>
-    </div>
-    <div class="r-summary-item">
-      <div class="lbl">Saldo anterior · {{moneda_codigo}}</div>
-      <div class="val">{{saldo_anterior_f}}</div>
-    </div>
-    <div class="r-summary-item">
-      <div class="lbl">Saldo final · {{moneda_codigo}}</div>
-      <div class="val">{{saldo_final_f}}</div>
-    </div>
-    {{/each}}
-  </div>
+        <!-- META (solo primera página) -->
+        <div class="r-meta">
+          <div class="r-meta-left">
+            <div class="r-field">
+              <div class="r-field-label">Caja</div>
+              <div class="r-field-value">{{caja_id}}{{caja_nombre}}</div>
+            </div>
+            <div class="r-field">
+              <div class="r-field-label">Cuenta</div>
+              <div class="r-field-value">{{cuenta_id}}{{cuenta_nombre}}</div>
+            </div>
+            <div class="r-field">
+              <div class="r-field-label">Moneda</div>
+              <div class="r-field-value">{{moneda_filtro}}</div>
+            </div>
+          </div>
+          <div class="r-meta-right">
+            <div class="r-field">
+              <div class="r-field-label">Tipo</div>
+              <div class="r-field-value">{{tipo_filtro}}</div>
+            </div>
+            <div class="r-field">
+              <div class="r-field-label">Saldo anterior incluido</div>
+              <div class="r-field-value">{{#if consolidado}}Sí{{else}}No{{/if}}</div>
+            </div>
+            <div class="r-field">
+              <div class="r-field-label">Generado por</div>
+              <div class="r-field-value">{{usuario}} · {{fecha_generacion_f}}</div>
+            </div>
+          </div>
+        </div>
 
-  {{#each secciones}}
-  <div class="r-section-title">{{tipo}}</div>
-  <table>
-    <thead>
-      <tr>
-        <th style="width:34%">Categoría</th>
-        <th class="col-center">Mon.</th>
-        <th class="col-right">Saldo anterior</th>
-        <th class="col-right">Entradas</th>
-        <th class="col-right">Salidas</th>
-        <th class="col-right">Saldo final</th>
-      </tr>
-    </thead>
-    <tbody>
-      {{#each filas}}
-      <tr>
-        <td class="desc-main">{{#if mostrar_nombre}}{{categoria_nombre}}{{/if}}</td>
-        <td class="col-center" style="font-size:7.5pt">{{moneda_codigo}}</td>
-        <td class="col-right">{{saldo_anterior_f}}</td>
-        <td class="col-right val-pos">{{total_entrada_f}}</td>
-        <td class="col-right val-neg">{{total_salida_f}}</td>
-        <td class="col-right" style="font-weight:600">{{saldo_final_f}}</td>
-      </tr>
-      {{/each}}
-      {{#each totales}}
-      <tr class="subtotal">
-        <td>Total {{../tipo}}</td>
-        <td class="col-center" style="font-size:7.5pt">{{moneda_codigo}}</td>
-        <td class="col-right">{{saldo_anterior_f}}</td>
-        <td class="col-right val-pos">{{total_entrada_f}}</td>
-        <td class="col-right val-neg">{{total_salida_f}}</td>
-        <td class="col-right">{{saldo_final_f}}</td>
-      </tr>
-      {{/each}}
-    </tbody>
-  </table>
-  {{/each}}
+        <!-- RESUMEN GENERAL (solo primera página) -->
+        <div class="r-summary">
+          {{#each totales_generales}}
+          <div class="r-summary-item">
+            <div class="lbl">Entradas · {{moneda_codigo}}</div>
+            <div class="val val-pos">{{total_entrada_f}}</div>
+          </div>
+          <div class="r-summary-item">
+            <div class="lbl">Salidas · {{moneda_codigo}}</div>
+            <div class="val val-neg">{{total_salida_f}}</div>
+          </div>
+          <div class="r-summary-item">
+            <div class="lbl">Saldo anterior · {{moneda_codigo}}</div>
+            <div class="val">{{saldo_anterior_f}}</div>
+          </div>
+          <div class="r-summary-item">
+            <div class="lbl">Saldo final · {{moneda_codigo}}</div>
+            <div class="val">{{saldo_final_f}}</div>
+          </div>
+          {{/each}}
+        </div>
 
-  <div class="r-total-final">
-    <span class="lbl">Saldo final general · {{moneda_filtro}}</span>
-    <span class="val">{{#each totales_generales}}{{simbolo_moneda}} {{saldo_final_f}}{{#unless @last}} · {{/unless}}{{/each}}</span>
-  </div>
+        <!-- CATEGORÍAS -->
+        {{#each categorias}}
+        <div class="r-section">
+          <div class="r-section-title">
+            <span>{{categoria_nombre}}</span>
+            <span class="tipo">{{tipo}}</span>
+          </div>
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th style="width:34%">Subcategoría</th>
+                <th class="col-center">Mon.</th>
+                <th class="col-right">Saldo anterior</th>
+                <th class="col-right">Entradas</th>
+                <th class="col-right">Salidas</th>
+                <th class="col-right">Saldo final</th>
+              </tr>
+            </thead>
+            <tbody>
+              {{#each subcategorias}}
+                {{#each monedas}}
+                <tr>
+                  <td class="{{#if @first}}desc-main{{else}}sub-indent{{/if}}">
+                    {{#if @first}}{{../subcategoria_nombre}}{{/if}}
+                  </td>
+                  <td class="col-center">{{moneda_codigo}}</td>
+                  <td class="col-right">{{saldo_anterior_f}}</td>
+                  <td class="col-right val-pos">{{total_entrada_f}}</td>
+                  <td class="col-right val-neg">{{total_salida_f}}</td>
+                  <td class="col-right" style="font-weight:600">{{saldo_final_f}}</td>
+                </tr>
+                {{/each}}
+              {{/each}}
+              {{#each totales_por_moneda}}
+                <tr class="subtotal">
+                  <td>Total {{../categoria_nombre}}</td>
+                  <td class="col-center">{{moneda_codigo}}</td>
+                  <td class="col-right">{{saldo_anterior_f}}</td>
+                  <td class="col-right val-pos">{{total_entrada_f}}</td>
+                  <td class="col-right val-neg">{{total_salida_f}}</td>
+                  <td class="col-right">{{saldo_final_f}}</td>
+                </tr>
+              {{/each}}
+            </tbody>
+          </table>
+        </div>
+        {{/each}}
 
-  <div class="r-footer">
-    <p>Documento generado por {{empresa_nombre}}</p>
-    <p>{{otrosDatosEmpresa}}</p>
-    <p>Periodo {{periodo_inicio_f}} al {{periodo_fin_f}}</p>
-  </div>
+        <!-- TOTAL FINAL -->
+        <div class="r-total-final">
+          <span class="lbl">Saldo final general · {{moneda_filtro}}</span>
+          <span class="val">{{#each totales_generales}}{{simbolo_moneda}} {{saldo_final_f}}{{#unless @last}} · {{/unless}}{{/each}}</span>
+        </div>
 
-</div>
+        <!-- FOOTER -->
+        <div class="r-footer">
+          <p>Documento generado por {{empresa_nombre}}</p>
+          <p>{{otrosDatosEmpresa}}</p>
+          <p>Periodo {{periodo_inicio_f}} al {{periodo_fin_f}}</p>
+        </div>
+
+      </td>
+    </tr>
+  </tbody>
+</table>
 
 </body>
 </html>

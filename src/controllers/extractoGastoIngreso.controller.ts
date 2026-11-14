@@ -2,9 +2,9 @@ import { Request, Response } from 'express';
 import { query } from '../db/db.js';
 import { generatePdfService } from '../services/pdfService.js';
 
-const TIPOS_SUBCATEGORIA = ['Ingreso', 'Gasto'];
-const REGEX_FECHA = /^(\d{4})[-/](\d{2})[-/](\d{2})$/;
-
+// ═══════════════════════════════════════════════════════════════════════════
+// UTILIDADES COMPARTIDAS
+// ═══════════════════════════════════════════════════════════════════════════
 const esVacio = (valor: unknown) => valor === undefined || valor === null || valor === '';
 
 const aEntero = (valor: unknown): number | null | undefined => {
@@ -13,6 +13,14 @@ const aEntero = (valor: unknown): number | null | undefined => {
     if (!Number.isInteger(n)) return undefined;
     return n > 0 ? n : null;
 };
+
+const formatear = (valor: number, decimales = 0) =>
+    new Intl.NumberFormat('de-DE', {
+        minimumFractionDigits: decimales,
+        maximumFractionDigits: decimales,
+    }).format(valor);
+
+const REGEX_FECHA = /^(\d{4})[-/](\d{2})[-/](\d{2})$/;
 
 // Acepta YYYY-MM-DD o YYYY/MM/DD y devuelve siempre YYYY-MM-DD.
 const aFecha = (valor: unknown): string | null | undefined => {
@@ -36,6 +44,11 @@ const aBooleano = (valor: unknown): boolean | undefined => {
     if (valor === 'false') return false;
     return undefined;
 };
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 1. SALDOS POR SUBCATEGORÍA
+// ═══════════════════════════════════════════════════════════════════════════
+const TIPOS_SUBCATEGORIA = ['Ingreso', 'Gasto'];
 
 // Saldos por subcategoría (ingreso y gasto), con saldo anterior, movimientos del periodo y saldo final.
 // Parámetros:
@@ -207,13 +220,6 @@ const agruparPorCategoria = (filas: FilaSQL[]) => {
     }));
 };
 
-// Formato de montos con separador de miles (1.250.000), igual que el recibo.
-const formatear = (valor: number, decimales = 0) =>
-    new Intl.NumberFormat('de-DE', {
-        minimumFractionDigits: decimales,
-        maximumFractionDigits: decimales,
-    }).format(valor);
-
 // Convierte YYYY-MM-DD en DD/MM/YYYY para mostrar en el informe.
 const fechaLarga = (fecha: string | null) => (fecha ? fecha.split('-').reverse().join('/') : '—');
 
@@ -314,7 +320,9 @@ export const saldosSubcategorias = async (req: Request, res: Response) => {
             periodo_inicio_f: fechaLarga(fechaInicio ?? null),
             periodo_fin_f: fechaLarga(fechaFin ?? null),
 
+            caja_id: cajaId ? `${cajaId}-` : '',
             caja_nombre: cajaId ? resultCaja.rows[0]?.descripcion ?? '—' : 'Todas',
+            cuenta_id: cuentaId ? `${cuentaId}-` : '',
             cuenta_nombre: cuentaId ? resultCuenta.rows[0]?.nombre ?? '—' : 'Todas',
             moneda_filtro: monedaId ? mapaMonedas.get(monedaId)?.codigo ?? '—' : 'Todas',
             tipo_filtro: tipoFiltro ?? 'Todos',
@@ -339,5 +347,274 @@ export const saldosSubcategorias = async (req: Request, res: Response) => {
     } catch (error) {
         console.error(error);
         return res.status(500).json({ error: 'No se pudo generar el informe de saldos por subcategoría' });
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 2. DRE MENSUAL (OCURRIDO)
+// Siempre en moneda base de la empresa: se usa asiento.valor_contable.
+// Grupos = public.categoria (codigo para ordenar y etiquetar, tipo para el bloque).
+// Cuentas = subcategorías con movimiento en el año.
+// Totalizadores: Total Ingresos, Total Gastos y Resultado Neto.
+// ═══════════════════════════════════════════════════════════════════════════
+
+type Tipo = 'Ingreso' | 'Gasto';
+
+const MESES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+const N = 12;
+
+type Valor = number | null;
+
+type CategoriaSQL = {
+    id: number;
+    codigo: string | null;
+    nombre: string;
+    tipo: Tipo;
+};
+
+const SQL_CATEGORIAS = `
+SELECT id, codigo, nombre, tipo
+FROM public.categoria
+WHERE activo = true`;
+
+type FilaDRESQL = {
+    tipo: Tipo;
+    categoria_id: number;
+    subcategoria_id: number;
+    subcategoria_nombre: string;
+    mes: number;
+    neto: string | number;
+};
+
+// Saldo ocurrido por subcategoría y mes en moneda base (valor_contable).
+// neto = Débito − Crédito (misma convención que saldos por subcategoría).
+// $1 anio, $2 sucursal_id (o null)
+const SQL_DRE_MENSUAL = `
+WITH base AS (
+    SELECT
+        a.tipo_asiento,
+        a.subcategoria_id,
+        a.naturaleza,
+        REPLACE(a.fecha_contable::text, '/', '-')::date AS fecha,
+        a.valor_contable AS importe
+    FROM public.asiento a
+    WHERE a.estado = 'Efectivado'
+      AND a.tipo_asiento IN ('PAGO', 'RECIBIMIENTO')
+      AND a.subcategoria_id IS NOT NULL
+      AND ($2::int IS NULL OR a.sucursal_id = $2::int)
+),
+unidos AS (
+    SELECT
+        CASE WHEN b.tipo_asiento = 'RECIBIMIENTO' THEN 'Ingreso' ELSE 'Gasto' END::text AS tipo,
+        COALESCE(si.categoria_id, sg.categoria_id) AS categoria_id,
+        b.subcategoria_id,
+        COALESCE(si.nombre, sg.nombre) AS subcategoria_nombre,
+        EXTRACT(MONTH FROM b.fecha)::int AS mes,
+        CASE WHEN b.naturaleza = 'Débito' THEN b.importe ELSE -b.importe END AS neto
+    FROM base b
+    LEFT JOIN public.subcategoria_ingreso si
+           ON b.tipo_asiento = 'RECIBIMIENTO' AND si.id = b.subcategoria_id
+    LEFT JOIN public.subcategoria_gasto sg
+           ON b.tipo_asiento = 'PAGO' AND sg.id = b.subcategoria_id
+    WHERE EXTRACT(YEAR FROM b.fecha) = $1::int
+)
+SELECT
+    tipo,
+    categoria_id,
+    subcategoria_id,
+    subcategoria_nombre,
+    mes,
+    COALESCE(SUM(neto), 0) AS neto
+FROM unidos
+WHERE categoria_id IS NOT NULL
+GROUP BY tipo, categoria_id, subcategoria_id, subcategoria_nombre, mes`;
+
+// Moneda base de la empresa: el DRE siempre se presenta en esta moneda.
+const SQL_EMPRESA_BASE = `
+SELECT e.fantasia, e.ruc, e.direccion, e.telefono, m.codigo AS moneda_codigo
+FROM public.empresa e
+LEFT JOIN public.moneda m ON m.id = e.moneda_base
+WHERE e.activo = true
+ORDER BY e.id
+LIMIT 1`;
+
+// ─── Utilidades del DRE ────────────────────────────────────────────────────
+// Negativos entre paréntesis; sin movimiento: "-".
+const fmtValor = (v: Valor) => {
+    if (v === null) return '-';
+    return v < 0 ? `(${formatear(Math.abs(v))})` : formatear(v);
+};
+
+const fmtPct = (v: Valor) => (v === null ? '-' : `${formatear(v, 1)}%`);
+
+// AV: línea sobre Total Ingresos del mismo mes.
+const analisisVertical = (valor: Valor, base: Valor): Valor =>
+    valor === null || base === null || base === 0 ? null : (valor / base) * 100;
+
+// AH: (mes − mes anterior) ÷ |mes anterior|. Sin base (anterior nulo o cero) → null.
+const analisisHorizontal = (cur: Valor, prev: Valor): Valor =>
+    cur === null || prev === null || prev === 0 ? null : ((cur - prev) / Math.abs(prev)) * 100;
+
+// Suma anual: null si el año no tiene ningún movimiento en la línea.
+const sumaAnual = (valores: Valor[]): Valor =>
+    valores.some((v) => v !== null) ? valores.reduce<number>((s, v) => s + (v ?? 0), 0) : null;
+
+// ─── Cálculo del DRE ────────────────────────────────────────────────────────
+type FilaDRE = { clase: string; nombre: string; valores: Valor[] };
+
+const ordenarCodigo = (a: string | null, b: string | null) =>
+    (a ?? '').localeCompare(b ?? '', 'es', { numeric: true });
+
+const calcularDRE = (categorias: CategoriaSQL[], filas: FilaDRESQL[]) => {
+    const hayMovimiento: boolean[] = Array(N).fill(false);
+
+    // Serie mensual por subcategoría, con la categoría a la que pertenece.
+    const subcategorias = new Map<string, { categoria_id: number; tipo: Tipo; nombre: string; serie: Valor[] }>();
+    for (const f of filas) {
+        const i = f.mes - 1;
+        hayMovimiento[i] = true;
+        const clave = `${f.tipo}|${f.categoria_id}|${f.subcategoria_id}`;
+        const sub = subcategorias.get(clave) ?? {
+            categoria_id: f.categoria_id,
+            tipo: f.tipo,
+            nombre: f.subcategoria_nombre,
+            serie: Array(N).fill(null) as Valor[],
+        };
+        sub.serie[i] = (sub.serie[i] ?? 0) + Number(f.neto);
+        subcategorias.set(clave, sub);
+    }
+
+    const salida: FilaDRE[] = [];
+
+    // Recorre las categorías de un tipo y devuelve el total mensual de ese tipo.
+    const bloque = (tipo: Tipo): Valor[] => {
+        const total: Valor[] = Array(N).fill(null);
+
+        const cats = categorias
+            .filter((c) => c.tipo === tipo)
+            .sort((a, b) => ordenarCodigo(a.codigo, b.codigo));
+
+        for (const cat of cats) {
+            const hijos = [...subcategorias.values()]
+                .filter((s) => s.tipo === tipo && s.categoria_id === cat.id)
+                .filter((s) => s.serie.some((v) => v !== null))
+                .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es', { numeric: true }));
+
+            if (hijos.length === 0) continue;
+
+            const valoresCat = Array.from({ length: N }, (_, i) =>
+                hijos.some((h) => h.serie[i] !== null)
+                    ? hijos.reduce<number>((acc, h) => acc + (h.serie[i] ?? 0), 0)
+                    : null,
+            );
+
+            salida.push({
+                clase: 'fila-grupo',
+                nombre: cat.codigo ? `${cat.codigo} ${cat.nombre}` : cat.nombre,
+                valores: valoresCat,
+            });
+            hijos.forEach((h) => salida.push({ clase: 'fila-cuenta', nombre: h.nombre, valores: h.serie }));
+
+            valoresCat.forEach((v, i) => {
+                if (v !== null) total[i] = (total[i] ?? 0) + v;
+            });
+        }
+
+        // Total del tipo: "-" si el mes no tiene movimiento; sin movimiento propio = 0.
+        return Array.from({ length: N }, (_, i) => (hayMovimiento[i] ? (total[i] ?? 0) : null));
+    };
+
+    const ingresos = bloque('Ingreso');
+    salida.push({ clase: 'fila-total', nombre: 'Total Ingresos', valores: ingresos });
+
+    const gastos = bloque('Gasto');
+    salida.push({ clase: 'fila-total', nombre: 'Total Gastos', valores: gastos });
+
+    const resultado = Array.from({ length: N }, (_, i) =>
+        hayMovimiento[i] ? (ingresos[i] ?? 0) + (gastos[i] ?? 0) : null,
+    );
+    salida.push({ clase: 'fila-total', nombre: 'Resultado Neto', valores: resultado });
+
+    return { filas: salida, ingresos };
+};
+
+// ─── Controlador ────────────────────────────────────────────────────────────
+export const dreMensual = async (req: Request, res: Response) => {
+    const { sucursal_id, anio } = req.body ?? {};
+
+    const sucursalId = aEntero(sucursal_id);
+    const anioN = aEntero(anio);
+
+    if (sucursalId === undefined) {
+        return res.status(400).json({ error: 'sucursal_id debe ser entero o null' });
+    }
+    if (!anioN || anioN < 2000 || anioN > 2100) {
+        return res.status(400).json({ error: 'anio es obligatorio (entre 2000 y 2100)' });
+    }
+
+    try {
+        const [resultCategorias, resultFilas, resultEmpresa] = await Promise.all([
+            query(SQL_CATEGORIAS),
+            query(SQL_DRE_MENSUAL, [anioN, sucursalId]),
+            query(SQL_EMPRESA_BASE),
+        ]);
+
+        const { filas, ingresos } = calcularDRE(
+            resultCategorias.rows as CategoriaSQL[],
+            resultFilas.rows as FilaDRESQL[],
+        );
+        const ingresosAnual = sumaAnual(ingresos);
+
+        const filasVista = filas.map((f) => {
+            const acumulado = sumaAnual(f.valores);
+            return {
+                clase: f.clase,
+                nombre: f.nombre,
+                celdas: f.valores.map((v, i) => ({
+                    valor_f: fmtValor(v),
+                    av_f: fmtPct(analisisVertical(v, ingresos[i])),
+                    ah_f: fmtPct(i === 0 ? null : analisisHorizontal(v, f.valores[i - 1])),
+                })),
+                acumulado: {
+                    valor_f: fmtValor(acumulado),
+                    av_f: fmtPct(analisisVertical(acumulado, ingresosAnual)),
+                },
+            };
+        });
+
+        const empresa = resultEmpresa.rows[0];
+
+        const datos = {
+            titulo_documento: `Estado de Resultados (DRE) · Ocurrido · ${anioN}`,
+            empresa_nombre: empresa?.fantasia ?? '',
+            otrosDatosEmpresa: [
+                empresa?.ruc ? `RUC ${empresa.ruc}` : null,
+                empresa?.direccion,
+                empresa?.telefono,
+            ].filter(Boolean).join(' · '),
+
+            anio: anioN,
+            sucursal_nombre: 'Todas',
+            moneda_codigo: empresa?.moneda_codigo ?? '—',
+
+            usuario: (req as any).user?.nombre ?? '—',
+            fecha_generacion_f: new Intl.DateTimeFormat('es-PY', {
+                dateStyle: 'short',
+                timeStyle: 'short',
+                timeZone: 'America/Asuncion',
+            }).format(new Date()),
+
+            meses: MESES,
+            filas: filasVista,
+        };
+
+        const pdf = await generatePdfService('dre', datos);
+
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', 'inline; filename="dre.pdf"');
+        return res.status(200).send(pdf);
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ error: 'No se pudo generar el DRE mensual' });
     }
 };

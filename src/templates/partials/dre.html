@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DRE {{anio}} — {{empresa_nombre}}</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
+
+    :root {
+      --brand:       {{#if color_principal}}{{color_principal}}{{else}}#1e3a5f{{/if}};
+      --ink:         #1f2937;
+      --ink-soft:    #4b5563;
+      --muted:       #6b7280;
+      --line:        #e5e7eb;
+      --line-mid:    #cbd5e1;
+      --line-strong: #94a3b8;
+      --tint:        #f5f7fa;
+      --tint-total:  #eef2f7;
+    }
+
+    @page { size: A3 landscape; margin: 10mm 8mm; }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      font-family: 'DM Sans', 'Segoe UI', Helvetica, Arial, sans-serif;
+      font-size: 8pt;
+      color: var(--ink);
+      background: #fff;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    /* ─── ENCABEZADO ─── */
+    .hdr {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      padding-bottom: 10px;
+      margin-bottom: 12px;
+      border-bottom: 2px solid var(--brand);
+    }
+    .hdr .titulo {
+      font-family: 'DM Serif Display', Georgia, serif;
+      font-size: 18pt;
+      color: var(--brand);
+      line-height: 1.1;
+      margin-bottom: 4px;
+    }
+    .hdr .sub {
+      font-size: 7.5pt;
+      font-weight: 600;
+      color: var(--ink-soft);
+      letter-spacing: 0.9px;
+      text-transform: uppercase;
+    }
+    .hdr .meta {
+      display: flex;
+      border: 0.5px solid var(--line-mid);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .hdr .meta div {
+      padding: 5px 10px;
+      border-left: 0.5px solid var(--line-mid);
+      min-width: 70px;
+    }
+    .hdr .meta div:first-child { border-left: none; }
+    .hdr .meta .k {
+      display: block;
+      font-size: 6pt;
+      font-weight: 600;
+      letter-spacing: 0.7px;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 2px;
+    }
+    .hdr .meta .v {
+      display: block;
+      font-size: 8.5pt;
+      font-weight: 600;
+      color: var(--ink);
+    }
+
+    /* ─── TABLA ─── */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+    thead { display: table-header-group; }
+    tr { page-break-inside: avoid; break-inside: avoid; }
+
+    th {
+      font-size: 6.2pt;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      color: var(--ink-soft);
+      font-weight: 600;
+      padding: 4px 3px;
+      text-align: right;
+      border-bottom: 0.75px solid var(--line-strong);
+    }
+    th.concepto {
+      text-align: left;
+      padding-left: 6px;
+      vertical-align: bottom;
+    }
+    th.mes {
+      text-align: center;
+      font-size: 7pt;
+      color: var(--brand);
+      padding: 5px 0 3px;
+      border-left: 0.75px solid var(--line-mid);
+      border-bottom: 0.5px solid var(--line-mid);
+    }
+    th.acum {
+      text-align: center;
+      font-size: 7pt;
+      color: var(--brand);
+      padding: 5px 0 3px;
+      border-left: 1.25px solid var(--brand);
+      border-bottom: 0.5px solid var(--line-mid);
+    }
+    th.sub-av, th.sub-ah { color: var(--muted); }
+
+    td {
+      padding: 3px 3px;
+      border-bottom: 0.5px solid var(--line);
+      font-family: 'DM Mono', 'Courier New', monospace;
+      font-size: 6.4pt;
+      text-align: right;
+      white-space: nowrap;
+      overflow: hidden;
+      vertical-align: middle;
+      font-variant-numeric: tabular-nums;
+    }
+    td.concepto {
+      font-family: 'DM Sans', 'Segoe UI', Helvetica, Arial, sans-serif;
+      font-size: 7.5pt;
+      text-align: left;
+      padding-left: 6px;
+      white-space: normal;
+    }
+    td.av, td.ah {
+      color: var(--muted);
+      font-size: 5.8pt;
+    }
+    td.sep { border-left: 0.75px solid var(--line-mid); }
+    td.acum-col { font-weight: 600; }
+    td.acum-sep { border-left: 1.25px solid var(--brand); }
+
+    /* Grupo: encabezado de categoría */
+    tr.fila-grupo td {
+      font-weight: 600;
+      background: var(--tint);
+      padding-top: 5px;
+      padding-bottom: 4px;
+      border-top: 0.5px solid var(--line-mid);
+      border-bottom: 0.5px solid var(--line-mid);
+    }
+    tr.fila-grupo td.concepto {
+      color: var(--brand);
+      font-size: 7.8pt;
+    }
+
+    /* Cuenta: detalle dentro del grupo */
+    tr.fila-cuenta td {
+      border-bottom: 0.25px dotted var(--line-mid);
+    }
+    tr.fila-cuenta td.concepto {
+      padding-left: 18px;
+      color: var(--ink-soft);
+      font-size: 7.2pt;
+    }
+
+    /* Totalizador */
+    tr.fila-total td {
+      font-weight: 700;
+      background: var(--tint-total);
+      border-top: 1px solid var(--brand);
+      border-bottom: 1px solid var(--brand);
+      padding-top: 5px;
+      padding-bottom: 5px;
+    }
+    tr.fila-total td.concepto {
+      color: var(--brand);
+      font-size: 8pt;
+      letter-spacing: 0.2px;
+    }
+    tr.fila-total td.av,
+    tr.fila-total td.ah { font-weight: 500; }
+
+    /* ─── NOTAS Y PIE ─── */
+    .notas {
+      margin-top: 12px;
+      padding: 8px 10px;
+      background: var(--tint);
+      border-left: 2px solid var(--brand);
+      font-size: 6.8pt;
+      color: var(--ink-soft);
+      line-height: 1.55;
+    }
+    .notas p + p { margin-top: 2px; }
+    .notas strong { color: var(--ink); font-weight: 600; }
+
+    .pie {
+      margin-top: 8px;
+      padding-top: 6px;
+      border-top: 0.5px solid var(--line-mid);
+      display: flex;
+      justify-content: space-between;
+      font-size: 6.5pt;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="hdr">
+    <div>
+      <div class="titulo">{{empresa_nombre}}</div>
+      <div class="sub">{{titulo_documento}}</div>
+    </div>
+    <div class="meta">
+      <div>
+        <span class="k">Ejercicio</span>
+        <span class="v">{{anio}}</span>
+      </div>
+      <div>
+        <span class="k">Sucursal</span>
+        <span class="v">{{sucursal_nombre}}</span>
+      </div>
+      <div>
+        <span class="k">Moneda</span>
+        <span class="v">{{moneda_codigo}}</span>
+      </div>
+    </div>
+  </div>
+
+  <table>
+    <colgroup>
+      <col style="width:40mm">
+      <col style="width:14mm"><col style="width:7mm"><col style="width:7mm">
+      <col style="width:14mm"><col style="width:7mm"><col style="width:7mm">
+      <col style="width:14mm"><col style="width:7mm"><col style="width:7mm">
+      <col style="width:14mm"><col style="width:7mm"><col style="width:7mm">
+      <col style="width:14mm"><col style="width:7mm"><col style="width:7mm">
+      <col style="width:14mm"><col style="width:7mm"><col style="width:7mm">
+      <col style="width:14mm"><col style="width:7mm"><col style="width:7mm">
+      <col style="width:14mm"><col style="width:7mm"><col style="width:7mm">
+      <col style="width:14mm"><col style="width:7mm"><col style="width:7mm">
+      <col style="width:14mm"><col style="width:7mm"><col style="width:7mm">
+      <col style="width:14mm"><col style="width:7mm"><col style="width:7mm">
+      <col style="width:14mm"><col style="width:7mm"><col style="width:7mm">
+      <col style="width:17mm"><col style="width:8mm">
+    </colgroup>
+
+    <thead>
+      <tr>
+        <th class="concepto" rowspan="2">Concepto</th>
+        {{#each meses}}<th class="mes" colspan="3">{{this}}</th>{{/each}}
+        <th class="acum" colspan="2">Acumulado</th>
+      </tr>
+      <tr>
+        {{#each meses}}<th>Valor</th><th class="sub-av">AV %</th><th class="sub-ah">AH %</th>{{/each}}
+        <th class="acum-sep">Valor</th><th class="sub-av">AV %</th>
+      </tr>
+    </thead>
+
+    <tbody>
+      {{#each filas}}
+      <tr class="{{clase}}">
+        <td class="concepto">{{nombre}}</td>
+        {{#each celdas}}<td class="{{#if @first}}sep{{/if}}">{{valor_f}}</td><td class="av">{{av_f}}</td><td class="ah">{{ah_f}}</td>{{/each}}
+        <td class="acum-col acum-sep">{{acumulado.valor_f}}</td>
+        <td class="av">{{acumulado.av_f}}</td>
+      </tr>
+      {{/each}}
+    </tbody>
+  </table>
+
+  <div class="notas">
+    <p><strong>Valores:</strong> expresados en {{moneda_codigo}}, según valor contable. Las cifras entre paréntesis son negativas. "-" indica mes sin movimiento o sin base de cálculo; un totalizador sin movimiento propio aparece como 0 en los meses con movimientos.</p>
+    <p><strong>AV %:</strong> participación de cada línea sobre el Total Ingresos del mismo mes. En el Acumulado, sobre el total de ingresos del año.</p>
+    <p><strong>AH %:</strong> variación respecto del mes anterior, calculada como (mes − mes anterior) ÷ |mes anterior|. Positiva cuando la línea mejora. Enero, y los meses cuyo anterior es cero o vacío, quedan en "-".</p>
+  </div>
+
+  <div class="pie">
+    <span>{{empresa_nombre}}{{#if otrosDatosEmpresa}} · {{otrosDatosEmpresa}}{{/if}}</span>
+    <span>Generado por {{usuario}} · {{fecha_generacion_f}}</span>
+  </div>
+
+</body>
+</html>
